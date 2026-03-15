@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
@@ -141,7 +142,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 .rcf:hover{box-shadow:0 3px 14px rgba(201,168,76,.32);}
 .wmsg{text-align:center;font-size:11px;color:var(--dm);padding:9px;letter-spacing:.3px;}
 /* modal */
-.modal{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.87);display:flex;align-items:center;justify-content:center;padding:16px;}
+.modal{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.87);display:flex;align-items:center;justify-content:center;padding:16px;}.modal.hidden{display:none!important;}.sdov.hidden{display:none!important;}.rbov.hidden{display:none!important;}
 .mbox{width:100%;max-width:280px;background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid rgba(201,168,76,.17);border-radius:14px;padding:20px 17px;box-shadow:0 20px 50px rgba(0,0,0,.8);}
 .mtitle{font-family:'Cinzel Decorative',serif;font-size:12px;color:var(--g);text-align:center;margin-bottom:8px;}
 .mtext{font-size:11px;color:var(--dm);text-align:center;margin-bottom:16px;line-height:1.6;}
@@ -179,6 +180,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 <div class="page" id="app">
 
 <!-- 닉네임 -->
+
 <div class="screen" id="sNick">
   <div class="logo"><div class="suits" style="color:var(--dm)">♠ <span style="color:var(--rd)">♥ ♦</span> ♣</div><h1>HOLDEM CLUB</h1><p>Private Texas Hold'em</p></div>
   <div class="card-panel">
@@ -189,6 +191,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 </div>
 
 <!-- 메인 -->
+
 <div class="screen hidden" id="sMain">
   <div class="logo"><div class="suits" style="color:var(--dm)">♠ <span style="color:var(--rd)">♥ ♦</span> ♣</div><h1>HOLDEM CLUB</h1></div>
   <div class="card-panel">
@@ -200,6 +203,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 </div>
 
 <!-- 방 만들기 -->
+
 <div class="screen hidden" id="sCreate">
   <button class="btn-ghost" id="btnBkC" style="align-self:flex-start">← 뒤로</button>
   <div style="margin-bottom:12px"><h1 style="font-family:'Cinzel Decorative',serif;font-size:18px;background:linear-gradient(135deg,var(--gd),var(--gl),var(--gd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">방 만들기</h1></div>
@@ -217,6 +221,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 </div>
 
 <!-- 방 참여 -->
+
 <div class="screen hidden" id="sJoin">
   <button class="btn-ghost" id="btnBkJ" style="align-self:flex-start">← 뒤로</button>
   <div style="margin-bottom:12px"><h1 style="font-family:'Cinzel Decorative',serif;font-size:18px;background:linear-gradient(135deg,var(--gd),var(--gl),var(--gd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">방 참여하기</h1></div>
@@ -236,6 +241,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 </div>
 
 <!-- 게임 -->
+
 <div class="screen hidden" id="sGame">
   <div class="ghud">
     <div><div class="hud-l">BLINDS</div><div class="hud-b" id="hudB">100/200</div></div>
@@ -276,6 +282,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 </div>
 
 <!-- 결과 -->
+
 <div class="screen hidden" id="sResult">
   <div class="logo" style="margin-bottom:12px"><h1 style="font-family:'Cinzel Decorative',serif;font-size:20px;background:linear-gradient(135deg,var(--gd),var(--gl),var(--gd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">게임 종료</h1><p id="rSub">최후의 1인</p></div>
   <div id="rList" style="width:100%;max-width:330px"></div>
@@ -285,6 +292,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 </div><!-- /app -->
 
 <!-- 모달들 -->
+
 <div class="modal hidden" id="endModal"><div class="mbox"><div class="mtitle">게임을 종료하시겠습니까?</div><div class="mtext">현재 게임을 끝내고<br>최종 결과를 확인합니다.</div><div class="mbtns"><button class="mbtn mb-c" id="mNo">취소</button><button class="mbtn mb-ok" id="mYes">종료</button></div></div></div>
 <div class="sdov hidden" id="sdOv"></div>
 <div class="rbov hidden" id="rbOv"><div class="rbt">칩이 소진되었습니다</div><div class="rbs" id="rbTxt">리바인으로 20,000칩을 받고<br>계속하시겠습니까?<br><span id="rbNote" style="color:var(--rl)"></span></div><div class="rbb"><button class="btn-out" id="rbNo" style="flex:1">나가기</button><button class="btn-gold" id="rbYes" style="flex:1">리바인</button></div></div>
@@ -798,5 +806,6 @@ $('mYes').addEventListener('click',async()=>{$('endModal').classList.add('hidden
 $('btnToMain').addEventListener('click',async()=>{if(roomCode)await remove(ref(db,`rooms/${roomCode}`));stopAll();roomCode=null;renderHist();showS('sMain');});
 window.addEventListener('beforeunload',()=>{if(roomCode&&!isHost)remove(ref(db,`rooms/${roomCode}/players/${myUID}`));});
 </script>
+
 </body>
 </html>
