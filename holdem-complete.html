@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>홀덤 클럽</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--g:#c9a84c;--gl:#e8c96a;--gd:#7a5f28;--felt:#1a3a2a;--fl:#245c3a;--bg:#07090a;--s1:#0f1510;--s2:#141d10;--tx:#f0e6c8;--dm:#7a6a4a;--rd:#c0392b;--rl:#e74c3c;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font-family:'Noto Sans KR',sans-serif;}
+.page{position:relative;width:100%;height:100%;z-index:1;}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px 16px;overflow-y:auto;opacity:0;animation:fadeUp .35s ease forwards;}
+.screen.hidden{display:none!important;}
+@keyframes fadeUp{to{opacity:1;transform:translateY(0);}from{opacity:0;transform:translateY(12px);}}
+/* layout */
+.logo{text-align:center;margin-bottom:22px;}
+.logo h1{font-family:'Cinzel Decorative',serif;font-size:24px;font-weight:900;background:linear-gradient(135deg,var(--gd),var(--gl),var(--gd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:2px;}
+.logo p{font-size:9px;color:var(--dm);letter-spacing:4px;text-transform:uppercase;margin-top:3px;}
+.logo .suits{font-size:16px;margin-bottom:6px;}
+.card-panel{width:100%;max-width:350px;background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid rgba(201,168,76,.16);border-radius:16px;padding:20px 18px;box-shadow:0 20px 55px rgba(0,0,0,.7),inset 0 1px 0 rgba(201,168,76,.1);}
+.ptitle{font-family:'Cinzel Decorative',serif;font-size:11px;color:var(--g);text-align:center;letter-spacing:2px;margin-bottom:16px;padding-bottom:11px;border-bottom:1px solid rgba(201,168,76,.1);}
+label.lbl{font-size:9px;color:var(--dm);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:5px;}
+input.inp{width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(201,168,76,.16);border-radius:9px;padding:12px 13px;color:var(--tx);font-family:'Noto Sans KR',sans-serif;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;}
+input.inp:focus{border-color:var(--g);box-shadow:0 0 0 3px rgba(201,168,76,.1);}
+input.inp::placeholder{color:rgba(138,122,90,.35);}
+.err{font-size:10px;color:var(--rl);margin-top:4px;min-height:13px;}
+.btn-gold{width:100%;padding:13px;background:linear-gradient(135deg,#5a4018,var(--g),#5a4018);background-size:200%;border:none;border-radius:10px;color:#1a0f00;font-family:'Cinzel Decorative',serif;font-size:11px;font-weight:700;letter-spacing:2px;cursor:pointer;transition:all .3s;box-shadow:0 4px 16px rgba(201,168,76,.2);margin-top:6px;}
+.btn-gold:hover{background-position:right;box-shadow:0 5px 22px rgba(201,168,76,.38);transform:translateY(-1px);}
+.btn-gold:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+.btn-out{width:100%;padding:12px;background:transparent;border:1px solid rgba(201,168,76,.2);border-radius:10px;color:var(--g);font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;margin-top:6px;}
+.btn-out:hover{background:rgba(201,168,76,.07);border-color:var(--g);}
+.btn-ghost{background:none;border:none;color:var(--dm);font-size:12px;cursor:pointer;padding:6px;transition:color .2s;}
+.btn-ghost:hover{color:var(--g);}
+.mopt{width:100%;padding:15px;background:rgba(0,0,0,.2);border:1px solid rgba(201,168,76,.1);border-radius:11px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:12px;margin-bottom:9px;}
+.mopt:hover{background:rgba(201,168,76,.05);border-color:rgba(201,168,76,.28);transform:translateX(2px);}
+.mopt-ic{width:38px;height:38px;background:linear-gradient(135deg,var(--felt),var(--fl));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;border:1px solid rgba(201,168,76,.14);}
+.code-box{background:rgba(0,0,0,.5);border:2px solid var(--g);border-radius:11px;padding:14px;text-align:center;margin:11px 0;box-shadow:0 0 16px rgba(201,168,76,.1);}
+.code-lbl{font-size:8px;letter-spacing:3px;color:var(--dm);text-transform:uppercase;margin-bottom:6px;}
+.code-val{font-family:'DM Mono',monospace;font-size:30px;font-weight:500;color:var(--gl);letter-spacing:8px;text-shadow:0 0 16px rgba(201,168,76,.3);}
+.pl-row{display:flex;align-items:center;gap:9px;padding:8px 10px;background:rgba(0,0,0,.2);border-radius:8px;border:1px solid rgba(201,168,76,.07);margin-bottom:6px;}
+.pl-av{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--felt),var(--fl));display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;border:1.5px solid rgba(201,168,76,.2);}
+.badge{font-size:8px;padding:2px 6px;border-radius:9px;font-weight:700;}
+.bh{background:rgba(201,168,76,.12);color:var(--g);border:1px solid rgba(201,168,76,.2);}
+.bw{background:rgba(46,160,67,.1);color:#4ade80;border:1px solid rgba(74,222,128,.18);}
+.ibox{font-size:11px;color:var(--dm);padding:8px;background:rgba(0,0,0,.15);border-radius:7px;text-align:center;margin-bottom:11px;}
+.code-inp{text-align:center;font-family:'DM Mono',monospace;font-size:22px;letter-spacing:7px;text-transform:uppercase;color:var(--gl);}
+.spin{width:15px;height:15px;border:2px solid rgba(201,168,76,.18);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:4px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--s2);border:1px solid rgba(201,168,76,.2);border-radius:8px;padding:8px 15px;font-size:11px;color:var(--tx);opacity:0;transition:all .3s;z-index:9999;white-space:nowrap;box-shadow:0 8px 25px rgba(0,0,0,.6);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+.toast.err{border-color:rgba(192,57,43,.4);color:var(--rl);}
+.toast.ok{border-color:rgba(74,222,128,.3);color:#4ade80;}
+/* ── GAME ── */
+#sGame{padding:0;overflow:hidden;background:radial-gradient(ellipse at 50% 38%,#1e4030 0%,#0a1e12 55%,#050d08 100%);}
+#sGame{display:flex!important;flex-direction:column;}
+.ghud{width:100%;display:flex;align-items:center;justify-content:space-between;padding:8px 12px 6px;background:linear-gradient(180deg,rgba(5,8,6,.96) 0%,transparent 100%);z-index:10;flex-shrink:0;}
+.hud-l{font-size:9px;color:var(--dm);}
+.hud-lv{font-family:'Cinzel Decorative',serif;font-size:9px;color:var(--g);letter-spacing:1px;}
+.hud-b{font-family:'DM Mono',monospace;font-size:12px;color:var(--gl);font-weight:500;}
+.hud-nx{font-size:9px;color:var(--dm);}
+.hud-nx span{color:var(--gl);font-family:'DM Mono',monospace;}
+.hud-end{font-size:10px;padding:4px 8px;background:rgba(192,57,43,.14);border:1px solid rgba(192,57,43,.26);border-radius:6px;color:var(--rl);cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .2s;}
+.hud-end:hover{background:rgba(192,57,43,.26);}
+.gbody{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;padding:2px 4px;}
+/* table */
+.tbl{position:relative;width:min(290px,calc(100vw - 8px));aspect-ratio:.61;border-radius:50%;background:radial-gradient(ellipse at 50% 38%,#2a5c3c 0%,#1a4a2e 38%,#0f2a1c 68%,#091810 100%);border:6px solid #091810;box-shadow:0 0 0 2px rgba(201,168,76,.2),0 0 0 4px #070a08,0 0 0 6px rgba(201,168,76,.07),0 16px 50px rgba(0,0,0,.9),inset 0 0 30px rgba(0,0,0,.5);flex-shrink:0;}
+.tc{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:72%;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.comm{display:flex;gap:3px;}
+.cc{width:24px;height:34px;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;}
+.cc.up{background:linear-gradient(160deg,#f8f4ea,#ede8d8);border:1px solid rgba(0,0,0,.17);box-shadow:0 2px 6px rgba(0,0,0,.45);}
+.cc.dn{background:linear-gradient(135deg,#1e3a28,#0f2018);border:1px solid rgba(201,168,76,.16);}
+.cc.em{background:rgba(0,0,0,.17);border:1px dashed rgba(201,168,76,.09);}
+.cr{font-size:9px;line-height:1;}.cs{font-size:11px;line-height:1;}
+.red{color:#c0392b;}.blk{color:#1a1a1a;}
+.pot-row{display:flex;align-items:center;gap:4px;background:rgba(0,0,0,.5);border:1px solid rgba(201,168,76,.2);border-radius:16px;padding:3px 10px;}
+.pot-lbl{font-size:7px;color:var(--dm);letter-spacing:1px;text-transform:uppercase;}
+.pot-v{font-family:'DM Mono',monospace;font-size:11px;color:var(--gl);}
+/* seats */
+.seat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;width:64px;z-index:5;}
+.sc{display:flex;gap:1px;margin-bottom:1px;}
+.card{width:14px;height:20px;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:6px;font-weight:700;}
+.card.bk{background:linear-gradient(135deg,#1e3a28,#0f2018);border:1px solid rgba(201,168,76,.16);box-shadow:0 1px 3px rgba(0,0,0,.5);}
+.card.fc{background:linear-gradient(160deg,#f8f4ea,#ede8d8);border:1px solid rgba(0,0,0,.14);box-shadow:0 1px 3px rgba(0,0,0,.5);}
+.card.fd{opacity:.18;transform:rotate(-10deg);}
+.sbox{background:rgba(0,0,0,.72);border:1px solid rgba(201,168,76,.16);border-radius:6px;padding:3px 6px;text-align:center;min-width:56px;max-width:72px;position:relative;box-shadow:0 2px 6px rgba(0,0,0,.5);}
+.sbox.act{border-color:var(--g);box-shadow:0 0 8px rgba(201,168,76,.45);animation:pls 1s ease-in-out infinite;}
+.sbox.fld{opacity:.38;}.sbox.out{opacity:.18;}
+@keyframes pls{0%,100%{box-shadow:0 0 6px rgba(201,168,76,.3);}50%{box-shadow:0 0 13px rgba(201,168,76,.7);}}
+.snn{font-size:8px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:66px;}
+.sch{font-family:'DM Mono',monospace;font-size:7px;color:var(--g);}
+.srb{font-size:6px;color:var(--dm);}
+.sbet{font-family:'DM Mono',monospace;font-size:7px;font-weight:700;background:rgba(201,168,76,.8);color:#fff;border-radius:8px;padding:0 4px;position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);white-space:nowrap;}
+.sact{font-size:6px;font-weight:700;padding:1px 4px;border-radius:4px;position:absolute;top:-12px;left:50%;transform:translateX(-50%);white-space:nowrap;}
+.a-fo{background:rgba(192,57,43,.85);color:#fff;}
+.a-ch{background:rgba(39,174,96,.85);color:#fff;}
+.a-ca{background:rgba(41,128,185,.85);color:#fff;}
+.a-ra{background:rgba(201,168,76,.9);color:#1a0f00;}
+.a-al{background:rgba(192,57,43,1);color:#fff;}
+.pb{background:#c9a84c;color:#1a0f00;font-size:6px;padding:0 3px;border-radius:3px;font-weight:700;}
+.psb{background:#2980b9;color:#fff;font-size:6px;padding:0 3px;border-radius:3px;font-weight:700;}
+.pbb{background:#8e44ad;color:#fff;font-size:6px;padding:0 3px;border-radius:3px;font-weight:700;}
+.tbar-w{position:absolute;bottom:-4px;left:10%;right:10%;height:2px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden;}
+.tbar{height:100%;background:var(--g);border-radius:2px;transition:width 1s linear,background .4s;}
+.tbar.urg{background:var(--rl);}
+/* action panel */
+.apanel{width:100%;padding:7px 12px 11px;background:linear-gradient(0deg,rgba(4,8,5,.98),rgba(4,8,5,.88));border-top:1px solid rgba(201,168,76,.1);flex-shrink:0;z-index:10;}
+.my-area{display:flex;flex-direction:column;align-items:center;gap:2px;margin-bottom:4px;}
+.my-pos{display:flex;gap:4px;align-items:center;}
+.my-cards{display:flex;gap:6px;justify-content:center;}
+.mc{width:38px;height:54px;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;box-shadow:0 3px 12px rgba(0,0,0,.6);}
+.mc.fc{background:linear-gradient(160deg,#faf6ec,#eee8d5);border:1px solid rgba(0,0,0,.14);}
+.mc.bk{background:linear-gradient(135deg,#1e3a28,#0f2018);border:1px solid rgba(201,168,76,.26);}
+.mc .mr{font-size:15px;line-height:1;}.mc .ms{font-size:18px;line-height:1;}
+.atimer{text-align:center;margin-bottom:4px;}
+.atnum{font-family:'DM Mono',monospace;font-size:15px;color:var(--g);font-weight:500;}
+.atnum.urg{color:var(--rl);animation:bl .5s ease-in-out infinite;}
+@keyframes bl{0%,100%{opacity:1;}50%{opacity:.3;}}
+.abtns{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
+.ab{flex:1;min-width:60px;max-width:95px;padding:9px 4px;border-radius:8px;border:none;font-family:'Noto Sans KR',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all .15s;}
+.ab:active{transform:scale(.94);}
+.ab-fo{background:rgba(192,57,43,.17);color:var(--rl);border:1px solid rgba(192,57,43,.26);}
+.ab-fo:hover{background:rgba(192,57,43,.3);}
+.ab-ch{background:rgba(39,174,96,.17);color:#4ade80;border:1px solid rgba(39,174,96,.26);}
+.ab-ch:hover{background:rgba(39,174,96,.3);}
+.ab-ca{background:rgba(41,128,185,.17);color:#74b9ff;border:1px solid rgba(41,128,185,.26);}
+.ab-ca:hover{background:rgba(41,128,185,.3);}
+.ab-ra{background:rgba(201,168,76,.17);color:var(--gl);border:1px solid rgba(201,168,76,.26);}
+.ab-ra:hover{background:rgba(201,168,76,.3);}
+.ab-al{background:rgba(192,57,43,.3);color:#ff8070;border:1px solid rgba(192,57,43,.42);}
+.ab-al:hover{background:rgba(192,57,43,.5);}
+.rpanel{margin-top:7px;padding:9px;background:rgba(0,0,0,.4);border:1px solid rgba(201,168,76,.12);border-radius:10px;}
+.ramt{font-family:'DM Mono',monospace;font-size:18px;color:var(--gl);text-align:center;margin-bottom:3px;}
+.rlbl{font-size:8px;color:var(--dm);text-align:center;margin-bottom:6px;}
+input[type=range].rsl{-webkit-appearance:none;width:100%;height:5px;background:linear-gradient(to right,var(--g) 0%,var(--g) 50%,rgba(255,255,255,.07) 50%);border-radius:3px;outline:none;margin:4px 0;}
+input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:linear-gradient(135deg,var(--gd),var(--gl));border-radius:50%;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.5);border:1.5px solid rgba(255,255,255,.17);}
+.rpre{display:flex;gap:4px;justify-content:center;margin-top:6px;}
+.rpbtn{padding:3px 8px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.17);border-radius:5px;color:var(--g);font-size:8px;cursor:pointer;transition:all .15s;}
+.rpbtn:hover{background:rgba(201,168,76,.22);}
+.rcf{width:100%;margin-top:6px;padding:9px;background:linear-gradient(135deg,#5a4018,var(--g));border:none;border-radius:8px;color:#1a0f00;font-family:'Cinzel Decorative',serif;font-size:9px;font-weight:700;letter-spacing:1px;cursor:pointer;transition:all .2s;}
+.rcf:hover{box-shadow:0 3px 14px rgba(201,168,76,.32);}
+.wmsg{text-align:center;font-size:11px;color:var(--dm);padding:9px;letter-spacing:.3px;}
+/* modal */
+.modal{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.87);display:flex;align-items:center;justify-content:center;padding:16px;}
+.mbox{width:100%;max-width:280px;background:linear-gradient(160deg,var(--s1),var(--s2));border:1px solid rgba(201,168,76,.17);border-radius:14px;padding:20px 17px;box-shadow:0 20px 50px rgba(0,0,0,.8);}
+.mtitle{font-family:'Cinzel Decorative',serif;font-size:12px;color:var(--g);text-align:center;margin-bottom:8px;}
+.mtext{font-size:11px;color:var(--dm);text-align:center;margin-bottom:16px;line-height:1.6;}
+.mbtns{display:flex;gap:8px;}
+.mbtn{flex:1;padding:10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Noto Sans KR',sans-serif;}
+.mb-c{background:rgba(255,255,255,.05);color:var(--dm);}
+.mb-ok{background:rgba(192,57,43,.26);color:var(--rl);border:1px solid rgba(192,57,43,.26);}
+.mb-ok:hover{background:rgba(192,57,43,.46);}
+/* showdown */
+.sdov{position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:16px;overflow-y:auto;}
+.sdt{font-family:'Cinzel Decorative',serif;font-size:15px;color:var(--gl);letter-spacing:2px;margin-bottom:2px;}
+.sdpl{width:100%;max-width:290px;background:linear-gradient(135deg,var(--s1),var(--s2));border:1px solid rgba(201,168,76,.17);border-radius:10px;padding:10px 13px;display:flex;align-items:center;gap:10px;}
+.sdpl.win{border-color:var(--g);box-shadow:0 0 16px rgba(201,168,76,.25);}
+.sdcs{display:flex;gap:2px;}
+.sdc{width:22px;height:31px;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#f8f4ea,#ede8d8);border:1px solid rgba(0,0,0,.14);font-weight:700;font-size:7px;box-shadow:0 2px 5px rgba(0,0,0,.4);}
+.sdn{font-size:11px;font-weight:700;}.sdh{font-size:9px;color:var(--dm);}.sdw{font-size:9px;color:var(--g);font-family:'DM Mono',monospace;}
+.sdnxt{padding:10px 24px;background:linear-gradient(135deg,#5a4018,var(--g));border:none;border-radius:9px;color:#1a0f00;font-family:'Cinzel Decorative',serif;font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;box-shadow:0 4px 13px rgba(201,168,76,.26);margin-top:4px;}
+/* rebuy */
+.rbov{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:12px;}
+.rbt{font-family:'Cinzel Decorative',serif;font-size:17px;color:var(--rl);text-align:center;}
+.rbs{font-size:11px;color:var(--dm);text-align:center;line-height:1.7;}
+.rbb{display:flex;gap:10px;width:100%;max-width:260px;}
+/* result */
+.ri{width:100%;max-width:310px;display:flex;align-items:center;gap:8px;padding:9px 12px;background:rgba(0,0,0,.26);border:1px solid rgba(201,168,76,.08);border-radius:9px;margin-bottom:7px;}
+.rr{font-family:'Cinzel Decorative',serif;font-size:15px;color:var(--dm);width:24px;text-align:center;}
+.rr.r1{color:var(--gl);}.rr.r2{color:#c0c0c0;}.rr.r3{color:#cd7f32;}
+.rname{flex:1;font-size:12px;font-weight:700;}.rchip{font-family:'DM Mono',monospace;font-size:10px;color:var(--g);}
+.blup{position:fixed;top:54px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(201,168,76,.9),rgba(139,110,46,.9));color:#1a0f00;padding:6px 16px;border-radius:16px;font-family:'Cinzel Decorative',serif;font-size:9px;font-weight:700;letter-spacing:1px;z-index:500;opacity:0;transition:opacity .3s;box-shadow:0 4px 16px rgba(201,168,76,.35);}
+.blup.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="blup" id="blup"></div>
+<div class="toast" id="toast"></div>
+<div class="page" id="app">
+
+<!-- 닉네임 -->
+<div class="screen" id="sNick">
+  <div class="logo"><div class="suits" style="color:var(--dm)">♠ <span style="color:var(--rd)">♥ ♦</span> ♣</div><h1>HOLDEM CLUB</h1><p>Private Texas Hold'em</p></div>
+  <div class="card-panel">
+    <div class="ptitle">✦ 입장 ✦</div>
+    <div style="margin-bottom:12px"><label class="lbl">닉네임</label><input class="inp" id="nickIn" type="text" placeholder="닉네임 입력 (2~12자)" maxlength="12" autocomplete="off"><div class="err" id="nickErr"></div></div>
+    <button class="btn-gold" id="btnNick">입 장 하 기</button>
+  </div>
+</div>
+
+<!-- 메인 -->
+<div class="screen hidden" id="sMain">
+  <div class="logo"><div class="suits" style="color:var(--dm)">♠ <span style="color:var(--rd)">♥ ♦</span> ♣</div><h1>HOLDEM CLUB</h1></div>
+  <div class="card-panel">
+    <div class="ptitle">✦ 게임 선택 ✦</div>
+    <div class="mopt" id="btnCreate"><div class="mopt-ic">🏠</div><div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">방 만들기</div><div style="font-size:10px;color:var(--dm)">새 방 개설 후 친구 초대</div></div><span style="color:var(--dm)">›</span></div>
+    <div class="mopt" id="btnJoin"><div class="mopt-ic">🔑</div><div style="flex:1"><div style="font-size:13px;font-weight:700;margin-bottom:2px">방 참여하기</div><div style="font-size:10px;color:var(--dm)">참여코드로 입장</div></div><span style="color:var(--dm)">›</span></div>
+    <div id="histWrap" style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(201,168,76,.07)"></div>
+  </div>
+</div>
+
+<!-- 방 만들기 -->
+<div class="screen hidden" id="sCreate">
+  <button class="btn-ghost" id="btnBkC" style="align-self:flex-start">← 뒤로</button>
+  <div style="margin-bottom:12px"><h1 style="font-family:'Cinzel Decorative',serif;font-size:18px;background:linear-gradient(135deg,var(--gd),var(--gl),var(--gd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">방 만들기</h1></div>
+  <div class="card-panel">
+    <div class="ptitle">✦ 참여코드 ✦</div>
+    <div class="code-box"><div class="code-lbl">게임 참여코드</div><div class="code-val" id="dispCode">------</div></div>
+    <button class="btn-out" id="btnCopy">📋 코드 복사</button>
+    <div style="margin-top:11px">
+      <div style="display:inline-flex;align-items:center;gap:3px;background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.13);border-radius:16px;padding:2px 8px;font-size:9px;color:var(--g);margin-bottom:9px">👥 <span id="cCnt">1 / 8</span></div>
+      <div id="cList"></div>
+    </div>
+    <div class="ibox" id="cMsg">2명 이상이 되면 시작 가능</div>
+    <button class="btn-gold" id="btnStart" disabled>게임 시작하기</button>
+  </div>
+</div>
+
+<!-- 방 참여 -->
+<div class="screen hidden" id="sJoin">
+  <button class="btn-ghost" id="btnBkJ" style="align-self:flex-start">← 뒤로</button>
+  <div style="margin-bottom:12px"><h1 style="font-family:'Cinzel Decorative',serif;font-size:18px;background:linear-gradient(135deg,var(--gd),var(--gl),var(--gd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">방 참여하기</h1></div>
+  <div class="card-panel" id="jIn">
+    <div class="ptitle">✦ 코드 입력 ✦</div>
+    <div style="margin-bottom:12px"><label class="lbl">참여코드 6자리</label><input class="inp code-inp" id="codeIn" type="text" placeholder="· · · · · ·" maxlength="6"><div class="err" id="jErr"></div></div>
+    <button class="btn-gold" id="btnJOk">입 장 하 기</button>
+  </div>
+  <div class="card-panel hidden" id="jWait">
+    <div class="ptitle">✦ 대기실 ✦</div>
+    <div class="code-box" style="padding:10px;margin-bottom:10px"><div class="code-lbl">참여코드</div><div class="code-val" id="wCode" style="font-size:22px;letter-spacing:6px"></div></div>
+    <div style="display:inline-flex;align-items:center;gap:3px;background:rgba(201,168,76,.07);border:1px solid rgba(201,168,76,.13);border-radius:16px;padding:2px 8px;font-size:9px;color:var(--g);margin-bottom:9px">👥 <span id="wCnt">1 / 8</span></div>
+    <div id="wList"></div>
+    <div class="ibox">방장이 게임을 시작할 때까지 대기 중...</div>
+    <button class="btn-out" id="btnLeave">나가기</button>
+  </div>
+</div>
+
+<!-- 게임 -->
+<div class="screen hidden" id="sGame">
+  <div class="ghud">
+    <div><div class="hud-l">BLINDS</div><div class="hud-b" id="hudB">100/200</div></div>
+    <div><div class="hud-lv" id="hudLv">LEVEL 1</div><div class="hud-nx">Next: <span id="hudNx">10:00</span></div></div>
+    <button class="hud-end" id="btnEnd">게임 종료</button>
+  </div>
+  <div class="gbody">
+    <div class="tbl" id="tbl">
+      <div id="seats"></div>
+      <div class="tc">
+        <div class="pot-row"><span style="font-size:10px">🪙</span><span class="pot-lbl">POT</span><span class="pot-v" id="potV">0</span></div>
+        <div id="spots" style="display:flex;gap:2px;flex-wrap:wrap;justify-content:center;margin-top:1px"></div>
+        <div class="comm" id="comm"></div>
+      </div>
+    </div>
+  </div>
+  <div class="apanel" id="apanel">
+    <div class="my-area">
+      <div class="my-pos" id="myPos"></div>
+      <div class="my-cards" id="myCards"></div>
+    </div>
+    <div class="atimer hidden" id="atimer"><span class="atnum" id="atnum">15</span><span style="font-size:9px;color:var(--dm)"> 초</span></div>
+    <div id="actBtns"></div>
+    <div class="rpanel hidden" id="rpanel">
+      <div class="rlbl">배팅 금액</div>
+      <div class="ramt" id="ramt">0</div>
+      <input type="range" class="rsl" id="rsl" min="0" max="100" value="50">
+      <div class="rpre">
+        <button class="rpbtn" data-p="25">1/4팟</button>
+        <button class="rpbtn" data-p="50">1/2팟</button>
+        <button class="rpbtn" data-p="75">3/4팟</button>
+        <button class="rpbtn" data-p="100">팟벳</button>
+      </div>
+      <button class="rcf" id="rcf">배팅 확정</button>
+    </div>
+    <div class="wmsg hidden" id="wmsg">다른 플레이어의 차례입니다...</div>
+  </div>
+</div>
+
+<!-- 결과 -->
+<div class="screen hidden" id="sResult">
+  <div class="logo" style="margin-bottom:12px"><h1 style="font-family:'Cinzel Decorative',serif;font-size:20px;background:linear-gradient(135deg,var(--gd),var(--gl),var(--gd));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">게임 종료</h1><p id="rSub">최후의 1인</p></div>
+  <div id="rList" style="width:100%;max-width:330px"></div>
+  <button class="btn-gold" id="btnToMain" style="width:100%;max-width:330px;margin-top:12px">메인으로</button>
+</div>
+
+</div><!-- /app -->
+
+<!-- 모달들 -->
+<div class="modal hidden" id="endModal"><div class="mbox"><div class="mtitle">게임을 종료하시겠습니까?</div><div class="mtext">현재 게임을 끝내고<br>최종 결과를 확인합니다.</div><div class="mbtns"><button class="mbtn mb-c" id="mNo">취소</button><button class="mbtn mb-ok" id="mYes">종료</button></div></div></div>
+<div class="sdov hidden" id="sdOv"></div>
+<div class="rbov hidden" id="rbOv"><div class="rbt">칩이 소진되었습니다</div><div class="rbs" id="rbTxt">리바인으로 20,000칩을 받고<br>계속하시겠습니까?<br><span id="rbNote" style="color:var(--rl)"></span></div><div class="rbb"><button class="btn-out" id="rbNo" style="flex:1">나가기</button><button class="btn-gold" id="rbYes" style="flex:1">리바인</button></div></div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import{getDatabase,ref,set,get,update,onValue,remove,serverTimestamp}from"https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
+
+const FA={apiKey:"AIzaSyCKCe0Fg4-JTavWfyzoz6sIGBNfYzmaaPg",authDomain:"first-holdem-application.firebaseapp.com",databaseURL:"https://first-holdem-application-default-rtdb.firebaseio.com",projectId:"first-holdem-application",storageBucket:"first-holdem-application.firebasestorage.app",messagingSenderId:"7962802275",appId:"1:7962802275:web:7595e73ce8659256bd6056"};
+const app=initializeApp(FA);const db=getDatabase(app);
+
+// ─── 상수 ───
+const BL=[[100,200],[200,400],[300,600],[400,800],[500,1000],[700,1400],[1000,2000],[1500,3000],[2000,4000],[2500,5000],[3000,6000],[4000,8000],[5000,10000],[6000,12000],[7000,14000],[8000,16000],[9000,18000],[10000,20000]];
+const LV_MS=10*60*1000,ACT_S=15,IC=20000;
+const SA=['♠','♥','♦','♣'],RA=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+const RV={2:2,3:3,4:4,5:5,6:6,7:7,8:8,9:9,10:10,J:11,Q:12,K:13,A:14};
+const isRed=s=>s==='♥'||s==='♦';
+const fmt=n=>Number(n||0).toLocaleString();
+const $=id=>document.getElementById(id);
+
+// ─── 상태 ───
+let myUID=localStorage.getItem('huid')||('u_'+Math.random().toString(36).substr(2,12));
+let myNick=localStorage.getItem('hnick')||'';
+let roomCode=null,isHost=false,roomUnsub=null,gameUnsub=null,actTI=null,blTI=null,raiseV=0,gs=null;
+localStorage.setItem('huid',myUID);
+
+// ─── 유틸 ───
+function genCode(){const c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:6},()=>c[~~(Math.random()*c.length)]).join('');}
+let _tt;
+function toast(m,t=''){const e=$('toast');e.textContent=m;e.className='toast show '+t;clearTimeout(_tt);_tt=setTimeout(()=>e.className='toast',2700);}
+function showS(id){document.querySelectorAll('.screen').forEach(s=>{s.classList.add('hidden');s.style.animation='none';});const t=$(id);t.classList.remove('hidden');t.style.animation='';void t.offsetWidth;t.style.animation='fadeUp .33s ease forwards';}
+function stopAll(){if(roomUnsub){roomUnsub();roomUnsub=null;}if(gameUnsub){gameUnsub();gameUnsub=null;}clearInterval(actTI);clearInterval(blTI);}
+function saveHist(o){const a=JSON.parse(localStorage.getItem('hh')||'[]');a.unshift(o);if(a.length>8)a.pop();localStorage.setItem('hh',JSON.stringify(a));}
+function renderHist(){const a=JSON.parse(localStorage.getItem('hh')||'[]');const e=$('histWrap');if(!a.length){e.innerHTML='';return;}e.innerHTML=`<div style="font-size:8px;color:var(--dm);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">최근 게임</div>`+a.slice(0,3).map(h=>`<div style="font-size:9px;color:var(--dm);padding:3px 0;border-bottom:1px solid rgba(201,168,76,.05)">${h.date} · ${h.rank}위 · ${fmt(h.chips)}칩</div>`).join('');}
+function mkDeck(){const d=[];for(const s of SA)for(const r of RA)d.push({s,r});return d;}
+function shuffle(d){for(let i=d.length-1;i>0;i--){const j=~~(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}return d;}
+
+// ─── 초기화 ───
+if(myNick){showS('sMain');renderHist();}else showS('sNick');
+
+// ─── 닉네임 ───
+$('btnNick').addEventListener('click',async()=>{
+  const v=$('nickIn').value.trim(),err=$('nickErr');err.textContent='';
+  if(v.length<2){err.textContent='2자 이상 입력해주세요.';return;}
+  if(!/^[가-힣a-zA-Z0-9_]+$/.test(v)){err.textContent='한글,영문,숫자,_만 사용 가능합니다.';return;}
+  const btn=$('btnNick');btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+  try{
+    const sn=await get(ref(db,`nicknames/${v}`));
+    if(sn.exists()&&sn.val().uid!==myUID){err.textContent='이미 사용 중인 닉네임입니다.';btn.disabled=false;btn.textContent='입 장 하 기';return;}
+    if(myNick&&myNick!==v)await remove(ref(db,`nicknames/${myNick}`));
+    await set(ref(db,`nicknames/${v}`),{uid:myUID,ts:serverTimestamp()});
+    myNick=v;localStorage.setItem('hnick',v);renderHist();showS('sMain');
+  }catch(e){err.textContent='오류가 발생했습니다.';}
+  btn.disabled=false;btn.textContent='입 장 하 기';
+});
+$('nickIn').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnNick').click();});
+
+// ─── 방 만들기 ───
+$('btnCreate').addEventListener('click',async()=>{
+  const code=genCode();roomCode=code;isHost=true;
+  await set(ref(db,`rooms/${code}`),{host:myUID,hostNick:myNick,status:'waiting',created:serverTimestamp(),players:{[myUID]:{nick:myNick,uid:myUID,isHost:true,chips:IC,rebuys:0,status:'waiting',jt:Date.now()}}});
+  $('dispCode').textContent=code;showS('sCreate');listenLobby(code,true);
+});
+$('btnBkC').addEventListener('click',async()=>{if(roomCode)await remove(ref(db,`rooms/${roomCode}`));stopAll();roomCode=null;showS('sMain');});
+$('btnCopy').addEventListener('click',()=>navigator.clipboard.writeText(roomCode).then(()=>toast('코드 복사 완료 🎉','ok')).catch(()=>toast(roomCode)));
+$('btnStart').addEventListener('click',async()=>{
+  if(!isHost||!roomCode)return;
+  const sn=await get(ref(db,`rooms/${roomCode}/players`));
+  const ps=sn.val()||{};
+  if(Object.keys(ps).length<2){toast('2명 이상 필요합니다.','err');return;}
+  await startGame(roomCode,ps);
+});
+
+// ─── 방 참여 ───
+$('btnJoin').addEventListener('click',()=>{$('codeIn').value='';$('jErr').textContent='';$('jIn').classList.remove('hidden');$('jWait').classList.add('hidden');showS('sJoin');});
+$('btnBkJ').addEventListener('click',async()=>{if(roomCode)await remove(ref(db,`rooms/${roomCode}/players/${myUID}`));stopAll();roomCode=null;showS('sMain');});
+$('codeIn').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');});
+$('btnJOk').addEventListener('click',async()=>{
+  const code=$('codeIn').value.trim().toUpperCase(),err=$('jErr');err.textContent='';
+  if(code.length!==6){err.textContent='6자리 코드를 입력해주세요.';return;}
+  const btn=$('btnJOk');btn.disabled=true;btn.innerHTML='<span class="spin"></span>';
+  try{
+    const sn=await get(ref(db,`rooms/${code}`));
+    if(!sn.exists()){err.textContent='존재하지 않는 방입니다.';btn.disabled=false;btn.textContent='입 장 하 기';return;}
+    const room=sn.val();
+    if(room.status==='playing'){
+      if(room.players&&room.players[myUID]){roomCode=code;isHost=false;showS('sGame');startGameListen(code);btn.disabled=false;btn.textContent='입 장 하 기';return;}
+      err.textContent='이미 게임이 시작된 방입니다.';btn.disabled=false;btn.textContent='입 장 하 기';return;
+    }
+    if(room.status==='ended'){err.textContent='게임이 종료된 방입니다.';btn.disabled=false;btn.textContent='입 장 하 기';return;}
+    const ps=room.players||{};
+    if(Object.keys(ps).length>=8){err.textContent='방이 가득 찼습니다 (최대 8명).';btn.disabled=false;btn.textContent='입 장 하 기';return;}
+    if(!ps[myUID])await update(ref(db,`rooms/${code}/players/${myUID}`),{nick:myNick,uid:myUID,isHost:false,chips:IC,rebuys:0,status:'waiting',jt:Date.now()});
+    roomCode=code;isHost=false;$('wCode').textContent=code;
+    $('jIn').classList.add('hidden');$('jWait').classList.remove('hidden');
+    listenLobby(code,false);
+  }catch(e){err.textContent='오류가 발생했습니다.';}
+  btn.disabled=false;btn.textContent='입 장 하 기';
+});
+$('btnLeave').addEventListener('click',async()=>{if(roomCode)await remove(ref(db,`rooms/${roomCode}/players/${myUID}`));stopAll();roomCode=null;showS('sMain');});
+
+// ─── 로비 리스너 ───
+function listenLobby(code,host){
+  if(roomUnsub)roomUnsub();
+  roomUnsub=onValue(ref(db,`rooms/${code}`),sn=>{
+    if(!sn.exists()){toast('방이 사라졌습니다.','err');stopAll();roomCode=null;showS('sMain');return;}
+    const d=sn.val();
+    if(d.status==='playing'){if(roomUnsub){roomUnsub();roomUnsub=null;}showS('sGame');startGameListen(code);return;}
+    if(d.status==='ended'){stopAll();showResult(d);return;}
+    const ps=d.players||{};const arr=Object.values(ps).sort((a,b)=>(a.jt||0)-(b.jt||0));const cnt=arr.length;
+    if(host){renderPList('cList',arr);$('cCnt').textContent=`${cnt}/8`;$('cMsg').textContent=cnt>=2?`${cnt}명 준비완료! 시작 가능 ✓`:'2명 이상이 되면 시작 가능';$('btnStart').disabled=cnt<2;}
+    else{renderPList('wList',arr);$('wCnt').textContent=`${cnt}/8`;}
+  });
+}
+function renderPList(id,arr){
+  const el=$(id);el.innerHTML='';
+  const sus=['♠','♥','♦','♣'],sc=['var(--dm)','var(--rd)','var(--rd)','var(--dm)'];
+  arr.forEach((p,i)=>{
+    const d=document.createElement('div');d.className='pl-row';
+    d.innerHTML=`<div class="pl-av" style="border-color:${p.isHost?'var(--g)':'rgba(201,168,76,.18)'}"><span style="color:${sc[i%4]}">${sus[i%4]}</span></div><div style="flex:1;font-size:11px;font-weight:700">${p.nick}${p.uid===myUID?' <span style="color:var(--g);font-size:8px">(나)</span>':''}</div><span class="badge ${p.isHost?'bh':'bw'}">${p.isHost?'방장':'대기'}</span>`;
+    el.appendChild(d);
+  });
+}
+
+// ─── 게임 시작 (방장) ───
+async function startGame(code,players){
+  const deck=shuffle(mkDeck());
+  const arr=Object.values(players).sort((a,b)=>a.jt-b.jt);
+  const n=arr.length;
+  let di=0;
+  // 포지션
+  const btnI=0,sbI=n===2?0:(1%n),bbI=n===2?1:(2%n);
+  const sbVal=BL[0][0],bbVal=BL[0][1];
+  const np={};
+  arr.forEach((p,i)=>{
+    let chips=p.chips,bet=0,pos='',st='active';
+    if(i===btnI)pos=n===2?'btn/sb':'btn';
+    if(i===sbI&&n>2){pos='sb';const paid=Math.min(sbVal,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
+    if(i===bbI){pos='bb';const paid=Math.min(bbVal,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
+    if(n===2&&i===btnI){const paid=Math.min(sbVal,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
+    np[p.uid]={nick:p.nick,uid:p.uid,isHost:p.isHost,chips,bet,pos,status:st,rebuys:p.rebuys||0,lastAction:'',hand:[deck[di++],deck[di++]]};
+  });
+  const community=[deck[di++],deck[di++],deck[di++],deck[di++],deck[di++]];
+  const pot=(np[arr[sbI].uid]?.bet||0)+(np[arr[bbI].uid]?.bet||0);
+  const firstI=(bbI+1)%n;
+  const order=arr.map(p=>p.uid);
+  const g={phase:'preflop',community,revealCount:0,pot,sidePots:[],players:np,order,btnI,sbI,bbI,curI:firstI,curBet:bbVal,lastRaiserI:bbI,blindLv:0,blindTs:Date.now(),handNum:1,minRaise:bbVal};
+  await update(ref(db,`rooms/${code}`),{status:'playing',game:g});
+}
+
+// ─── 게임 리스너 ───
+function startGameListen(code){
+  if(gameUnsub)gameUnsub();
+  startBlindTimer();
+  gameUnsub=onValue(ref(db,`rooms/${code}`),sn=>{
+    if(!sn.exists())return;
+    const d=sn.val();
+    if(d.status==='ended'){stopAll();showResult(d);return;}
+    if(!d.game)return;
+    gs=d.game;renderGame(gs);
+  });
+}
+
+// ─── 게임 렌더 ───
+function renderGame(g){
+  if(!g)return;
+  const lv=Math.min(g.blindLv||0,BL.length-1);const[sb,bb]=BL[lv];
+  $('hudB').textContent=`${fmt(sb)}/${fmt(bb)}`;$('hudLv').textContent=`LEVEL ${lv+1}`;
+  $('potV').textContent=fmt(g.pot||0);
+  renderComm(g);renderSeats(g);renderMyArea(g);
+  if(g.phase==='showdown'&&$('sdOv').classList.contains('hidden'))showSD(g);
+}
+
+function renderComm(g){
+  const el=$('comm');el.innerHTML='';
+  const ph=g.phase;const show=ph==='flop'?3:ph==='turn'?4:(ph==='river'||ph==='showdown')?5:0;
+  for(let i=0;i<5;i++){
+    const d=document.createElement('div');
+    const c=g.community?.[i];
+    if(i<show&&c){d.className='cc up';d.innerHTML=`<span class="cr ${isRed(c.s)?'red':'blk'}">${c.r}</span><span class="cs ${isRed(c.s)?'red':'blk'}">${c.s}</span>`;}
+    else if(i<show){d.className='cc dn';d.textContent='🂠';}
+    else d.className='cc em';
+    el.appendChild(d);
+  }
+}
+
+function seatPos(relI,n,W,H){
+  const a=Math.PI/2+(2*Math.PI*relI/n);
+  const rx=W*.5-6,ry=H*.5-6,cx=W/2,cy=H/2;
+  return{x:cx+rx*Math.cos(a),y:cy-ry*Math.sin(a)};
+}
+
+function renderSeats(g){
+  const el=$('seats');el.innerHTML='';
+  const tbl=$('tbl');const W=tbl.offsetWidth||290,H=tbl.offsetHeight||475;
+  const order=g.order||[];const n=order.length;const myI=order.indexOf(myUID);
+  order.forEach((uid,i)=>{
+    const p=g.players[uid];if(!p)return;
+    const rel=(i-myI+n)%n;const pos=seatPos(rel,n,W,H);
+    const seat=document.createElement('div');seat.className='seat';seat.style.left=pos.x+'px';seat.style.top=pos.y+'px';
+    const isMe=uid===myUID,isAct=order[g.curI]===uid,isFd=p.status==='folded',isOut=p.status==='out';
+    // cards
+    const sc=document.createElement('div');sc.className='sc';
+    if(p.hand&&!isOut){
+      const show=isMe||(g.phase==='showdown');
+      [0,1].forEach(ci=>{
+        const cd=document.createElement('div');const c=p.hand[ci];
+        if(show&&c&&!isFd){cd.className='card fc';cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';cd.innerHTML=c.r[0]+(c.r==='10'?'0':'');}
+        else if(!isFd){cd.className='card bk';}
+        else{cd.className='card bk fd';}
+        sc.appendChild(cd);
+      });
+    }
+    seat.appendChild(sc);
+    // name box
+    const nb=document.createElement('div');
+    nb.className=`sbox${isAct&&!isFd&&!isOut?' act':''}${isFd?' fld':''}${isOut?' out':''}`;
+    let posBdg='';
+    if(p.pos==='btn')posBdg='<span class="pb">BTN</span> ';
+    else if(p.pos==='sb')posBdg='<span class="psb">SB</span> ';
+    else if(p.pos==='bb')posBdg='<span class="pbb">BB</span> ';
+    else if(p.pos==='btn/sb')posBdg='<span class="pb">BTN</span><span class="psb">SB</span> ';
+    const rbTxt=p.rebuys>0?`<div class="srb">리바인:${p.rebuys}</div>`:'';
+    nb.innerHTML=`<div style="display:flex;align-items:center;gap:2px;justify-content:center">${posBdg}<span class="snn" style="color:${isMe?'var(--gl)':'var(--tx)'}">${p.nick}</span></div><div class="sch">${fmt(p.chips)}</div>${rbTxt}`;
+    if(isAct&&!isFd&&!isOut){const tw=document.createElement('div');tw.className='tbar-w';const tb=document.createElement('div');tb.className='tbar';tb.id='tb_'+uid;tb.style.width='100%';tw.appendChild(tb);nb.appendChild(tw);}
+    seat.appendChild(nb);
+    if(p.bet>0){const be=document.createElement('div');be.className='sbet';be.textContent=fmt(p.bet);seat.appendChild(be);}
+    if(p.lastAction){
+      const amap={fold:'폴드',check:'체크',call:'콜',raise:'레이즈',allin:'올인'};
+      const cmap={fold:'a-fo',check:'a-ch',call:'a-ca',raise:'a-ra',allin:'a-al'};
+      if(cmap[p.lastAction]){const ae=document.createElement('div');ae.className=`sact ${cmap[p.lastAction]}`;ae.textContent=amap[p.lastAction];seat.appendChild(ae);}
+    }
+    el.appendChild(seat);
+  });
+}
+
+function renderMyArea(g){
+  const me=g.players[myUID];if(!me)return;
+  // pos
+  const pr=$('myPos');pr.innerHTML='';
+  const pmap={btn:'<span class="pb">BTN</span>',sb:'<span class="psb">SB</span>',bb:'<span class="pbb">BB</span>','btn/sb':'<span class="pb">BTN</span><span class="psb">SB</span>'};
+  if(pmap[me.pos])pr.innerHTML=pmap[me.pos];
+  // cards
+  const mc=$('myCards');mc.innerHTML='';
+  if(me.hand&&me.status!=='out'){
+    me.hand.forEach(c=>{
+      const d=document.createElement('div');
+      if(me.status==='folded'){d.className='mc bk';d.innerHTML='<span style="font-size:16px;color:rgba(201,168,76,.25)">🂠</span>';}
+      else{d.className='mc fc';d.innerHTML=`<span class="mr ${isRed(c.s)?'red':'blk'}">${c.r}</span><span class="ms ${isRed(c.s)?'red':'blk'}">${c.s}</span>`;}
+      mc.appendChild(d);
+    });
+  }
+  const myTurn=g.order[g.curI]===myUID,isFd=me.status==='folded'||me.status==='out';
+  $('atimer').classList.toggle('hidden',!myTurn||isFd);
+  $('wmsg').classList.toggle('hidden',myTurn||isFd);
+  $('actBtns').innerHTML='';$('rpanel').classList.add('hidden');
+  if(myTurn&&!isFd)renderActBtns(g,me);
+}
+
+function renderActBtns(g,me){
+  const cb=$('actBtns');cb.innerHTML='';
+  const curBet=g.curBet||0,myBet=me.bet||0,myChips=me.chips||0,toCall=curBet-myBet;
+  const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];
+  const minR=g.minRaise||bb;
+  function ab(lbl,cls,fn){const b=document.createElement('button');b.className=`ab ${cls}`;b.textContent=lbl;b.addEventListener('click',fn);cb.appendChild(b);}
+  if(myChips<=0){ab('올인','ab-al',()=>doAct('allin',myBet));return;}
+  if(toCall<=0){
+    ab('체크','ab-ch',()=>doAct('check',0));
+    if(myChips>=bb)ab('레이즈','ab-ra',()=>openRaise(g,me));
+    ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+  }else{
+    ab('폴드','ab-fo',()=>doAct('fold',0));
+    if(myChips<=toCall){ab('올인','ab-al',()=>doAct('allin',myBet+myChips));}
+    else{
+      ab('콜','ab-ca',()=>doAct('call',curBet));
+      if(myChips>toCall+minR)ab('레이즈','ab-ra',()=>openRaise(g,me));
+      ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+    }
+  }
+  startActTimer(g);
+}
+
+function openRaise(g,me){
+  const curBet=g.curBet||0,myBet=me.bet||0,myChips=me.chips||0;
+  const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];
+  const minR=g.minRaise||bb;
+  const minTotal=curBet+minR,maxTotal=myBet+myChips;
+  const sl=$('rsl');sl.min=minTotal;sl.max=maxTotal;sl.value=minTotal;
+  raiseV=minTotal;$('ramt').textContent=fmt(raiseV);$('rpanel').classList.remove('hidden');
+  const updSl=()=>{raiseV=+sl.value;$('ramt').textContent=fmt(raiseV);const pct=((raiseV-minTotal)/(maxTotal-minTotal||1))*100;sl.style.background=`linear-gradient(to right,var(--g) 0%,var(--g) ${pct}%,rgba(255,255,255,.07) ${pct}%)`;};
+  sl.oninput=updSl;updSl();
+  document.querySelectorAll('.rpbtn').forEach(btn=>{
+    btn.onclick=()=>{const pct=+btn.dataset.p/100;let v=Math.round(curBet+(g.pot||0)*pct);v=Math.max(minTotal,Math.min(maxTotal,v));sl.value=v;raiseV=v;updSl();};
+  });
+  $('rcf').onclick=()=>{$('rpanel').classList.add('hidden');doAct('raise',raiseV);};
+}
+
+function startActTimer(g){
+  clearInterval(actTI);let s=ACT_S;
+  const ne=$('atnum');ne.textContent=s;ne.className='atnum';
+  actTI=setInterval(async()=>{
+    s--;ne.textContent=s;if(s<=5)ne.className='atnum urg';
+    const uid=g.order[g.curI];const tb=$('tb_'+uid);
+    if(tb){const p=(s/ACT_S)*100;tb.style.width=p+'%';if(s<=5)tb.classList.add('urg');}
+    if(s<=0){clearInterval(actTI);const me=g.players[myUID];const toCall=(g.curBet||0)-(me?.bet||0);await doAct(toCall>0?'fold':'check',0);}
+  },1000);
+}
+
+// ─── 액션 처리 ───
+async function doAct(type,amount){
+  clearInterval(actTI);
+  if(!roomCode||!gs)return;
+  const sn=await get(ref(db,`rooms/${roomCode}/game`));if(!sn.exists())return;
+  const g=sn.val();const order=g.order,n=order.length;
+  if(order[g.curI]!==myUID)return;
+  const players={...g.players};let pot=g.pot||0,curBet=g.curBet||0,minR=g.minRaise||BL[Math.min(g.blindLv||0,BL.length-1)][1],lastRI=g.lastRaiserI??g.curI;
+  const p={...players[myUID]};
+
+  if(type==='fold'){p.status='folded';p.lastAction='fold';}
+  else if(type==='check'){p.lastAction='check';}
+  else if(type==='call'){const toCall=Math.min(curBet-p.bet,p.chips);pot+=toCall;p.chips-=toCall;p.bet+=toCall;p.lastAction='call';if(p.chips<=0)p.status='allin';}
+  else if(type==='raise'){const diff=amount-(p.bet||0),actual=Math.min(diff,p.chips);minR=amount-curBet;curBet=amount;pot+=actual;p.chips-=actual;p.bet=amount;p.lastAction='raise';lastRI=order.indexOf(myUID);if(p.chips<=0)p.status='allin';}
+  else if(type==='allin'){const total=p.chips+(p.bet||0);if(total>curBet){curBet=total;lastRI=order.indexOf(myUID);minR=p.chips;}pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';}
+  players[myUID]=p;
+
+  // 남은 플레이어
+  const notFolded=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
+  if(notFolded.length===1){
+    players[notFolded[0]].chips+=pot;pot=0;
+    const ns={...g,players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'showdown',revealCount:5};
+    await update(ref(db,`rooms/${roomCode}/game`),ns);return;
+  }
+  const nextI=nextAct(order,players,g.curI);
+  // 베팅 종료 체크
+  const active=order.filter(u=>players[u].status==='active');
+  const allMatched=active.every(u=>(players[u].bet||0)>=curBet)||active.length===0;
+  const nxtRealI=nextActFrom(order,players,lastRI);
+  const roundDone=allMatched&&(active.length===0||nextI===nxtRealI);
+
+  if(roundDone){const ns=await advPhase(g,players,pot,curBet,minR);await update(ref(db,`rooms/${roomCode}/game`),ns);}
+  else await update(ref(db,`rooms/${roomCode}/game`),{players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,curI:nextI});
+}
+
+function nextAct(order,players,curI){for(let i=1;i<order.length;i++){const idx=(curI+i)%order.length;if(players[order[idx]]?.status==='active')return idx;}return curI;}
+function nextActFrom(order,players,fromI){for(let i=1;i<=order.length;i++){const idx=(fromI+i)%order.length;if(players[order[idx]]?.status==='active')return idx;}return fromI;}
+
+async function advPhase(g,players,pot,curBet,minR){
+  const order=g.order,n=order.length;
+  order.forEach(uid=>{if(players[uid].status==='active')players[uid].bet=0;});
+  const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];
+  let phase=g.phase,rev=g.revealCount||0;
+  if(phase==='preflop'){phase='flop';rev=3;}
+  else if(phase==='flop'){phase='turn';rev=4;}
+  else if(phase==='turn'){phase='river';rev=5;}
+  else if(phase==='river'){return doSD(g,players,pot);}
+  const firstI=nextActFrom(order,players,(g.btnI)%n);
+  return{...g,phase,revealCount:rev,pot,players,curBet:0,minRaise:bb,lastRaiserI:firstI,curI:firstI};
+}
+
+function doSD(g,players,pot){
+  const order=g.order;const nf=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
+  const scores=nf.map(uid=>{const p=players[uid];return{uid,score:evalBest5([...(p.hand||[]),...(g.community||[])]),nick:p.nick};});
+  scores.sort((a,b)=>b.score.rank-a.score.rank);
+  const topR=scores[0]?.score.rank;const winners=scores.filter(s=>s.score.rank===topR);
+  const each=Math.floor(pot/winners.length),rem=pot%winners.length;
+  winners.forEach((w,i)=>{players[w.uid].chips+=(each+(i===0?rem:0));});
+  return{...g,phase:'showdown',revealCount:5,players,pot:0};
+}
+
+function showSD(g){
+  const order=g.order;const nf=order.filter(u=>g.players[u].status!=='folded'&&g.players[u].status!=='out');
+  const scores=nf.map(uid=>{const p=g.players[uid];return{uid,score:evalBest5([...(p.hand||[]),...(g.community||[])]),nick:p.nick,chips:p.chips};});
+  scores.sort((a,b)=>b.score.rank-a.score.rank);const topR=scores[0]?.score.rank;
+  const ov=$('sdOv');ov.innerHTML='';ov.classList.remove('hidden');
+  const t=document.createElement('div');t.className='sdt';t.textContent='✦ 쇼다운 ✦';ov.appendChild(t);
+  scores.forEach(sc=>{
+    const p=g.players[sc.uid];const win=sc.score.rank===topR;
+    const d=document.createElement('div');d.className=`sdpl${win?' win':''}`;
+    const cs=document.createElement('div');cs.className='sdcs';
+    (p.hand||[]).forEach(c=>{const cd=document.createElement('div');cd.className='sdc';cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';cd.innerHTML=`<span>${c.r}</span><span style="font-size:9px">${c.s}</span>`;cs.appendChild(cd);});
+    const info=document.createElement('div');info.innerHTML=`<div class="sdn">${win?'🏆 ':''}${p.nick}</div><div class="sdh">${sc.score.name}</div><div class="sdw">${fmt(p.chips)}칩 보유</div>`;
+    d.appendChild(cs);d.appendChild(info);ov.appendChild(d);
+  });
+  const btn=document.createElement('button');btn.className='sdnxt';btn.textContent='다음 핸드';
+  btn.addEventListener('click',async()=>{ov.classList.add('hidden');await nextHand(g);});
+  ov.appendChild(btn);
+  // 방장이 아닌 경우 버튼 숨김, 방장만 다음핸드 진행
+  if(!isHost){btn.style.display='none';
+    // 자동으로 기다림 (방장이 진행)
+  }
+}
+
+// ─── 다음 핸드 ───
+async function nextHand(g){
+  if(!isHost)return;
+  const sn=await get(ref(db,`rooms/${roomCode}/game`));if(!sn.exists())return;
+  const cg=sn.val();const players={...cg.players};const order=cg.order;
+  const lv=cg.blindLv||0,canRebuy=lv<10;// 인덱스 10 = 6000-12000 이상
+  // 탈락 처리
+  let myDead=false;
+  order.forEach(uid=>{if(players[uid].chips<=0&&players[uid].status!=='out'){if(uid===myUID)myDead=true;else{players[uid].status='out';}}});
+  const alive=order.filter(u=>players[u].status!=='out'&&players[u].chips>0);
+  if(alive.length<=1){await endGame(cg,players);return;}
+  if(myDead&&(players[myUID]?.chips||0)<=0){
+    showRebuy(canRebuy,async doR=>{
+      if(doR){players[myUID].chips=IC;players[myUID].rebuys=(players[myUID].rebuys||0)+1;players[myUID].status='active';await update(ref(db,`rooms/${roomCode}/game`),{players});await doNextHand(cg,players);}
+      else{players[myUID].status='out';await update(ref(db,`rooms/${roomCode}/game`),{players});toast('게임에서 퇴장했습니다.','err');stopAll();showS('sMain');}
+    });return;
+  }
+  await doNextHand(cg,players);
+}
+
+function showRebuy(can,cb){
+  $('rbNote').textContent=can?'':'현재 블라인드 레벨이 높아 리바인이 불가합니다.';
+  $('rbYes').disabled=!can;$('rbOv').classList.remove('hidden');
+  $('rbYes').onclick=()=>{$('rbOv').classList.add('hidden');cb(true);};
+  $('rbNo').onclick=()=>{$('rbOv').classList.add('hidden');cb(false);};
+}
+
+async function doNextHand(g,players){
+  const order=g.order;const alive=order.filter(u=>players[u].status!=='out'&&players[u].chips>0);
+  const n=alive.length;if(n<=1){await endGame(g,players);return;}
+  const deck=shuffle(mkDeck());let di=0;
+  const oldBtnI=alive.indexOf(g.order[g.btnI]);const newBtnI=(oldBtnI<0?0:oldBtnI+1)%n;
+  const sbI=n===2?newBtnI:(newBtnI+1)%n,bbI=n===2?(newBtnI+1)%n:(newBtnI+2)%n;
+  const lv=g.blindLv||0;const[sb,bb]=BL[Math.min(lv,BL.length-1)];
+  const np={};
+  alive.forEach((uid,i)=>{
+    const op=players[uid];let chips=op.chips,bet=0,pos='',st='active';
+    if(i===newBtnI)pos=n===2?'btn/sb':'btn';
+    if(i===sbI&&n>2){pos='sb';const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
+    if(i===bbI){pos='bb';const paid=Math.min(bb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
+    if(n===2&&i===newBtnI){const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
+    np[uid]={...op,chips,bet,pos,status:st,lastAction:'',hand:[deck[di++],deck[di++]]};
+  });
+  const community=[deck[di++],deck[di++],deck[di++],deck[di++],deck[di++]];
+  const pot=(np[alive[sbI]]?.bet||0)+(np[alive[bbI]]?.bet||0);
+  const firstI=(bbI+1)%n;
+  const ns={phase:'preflop',community,revealCount:0,pot,sidePots:[],players:np,order:alive,btnI:newBtnI,sbI,bbI,curI:firstI,curBet:bb,lastRaiserI:bbI,blindLv:lv,blindTs:g.blindTs,handNum:(g.handNum||1)+1,minRaise:bb};
+  await update(ref(db,`rooms/${roomCode}/game`),ns);
+}
+
+// ─── 블라인드 타이머 ───
+function startBlindTimer(){
+  clearInterval(blTI);
+  blTI=setInterval(async()=>{
+    if(!gs)return;
+    const lv=gs.blindLv||0,elapsed=Date.now()-(gs.blindTs||Date.now()),rem=LV_MS-elapsed;
+    const m=Math.max(0,Math.floor(rem/60000)),s=Math.max(0,Math.floor((rem%60000)/1000));
+    $('hudNx').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+    if(rem<=0&&isHost&&lv<BL.length-1){
+      const nl=lv+1;const[nsb,nbb]=BL[nl];
+      const blup=$('blup');blup.textContent=`블라인드 업! ${fmt(nsb)}/${fmt(nbb)}`;blup.classList.add('show');
+      setTimeout(()=>blup.classList.remove('show'),3000);
+      await update(ref(db,`rooms/${roomCode}/game`),{blindLv:nl,blindTs:Date.now()});
+    }
+  },1000);
+}
+
+// ─── 게임 종료 ───
+async function endGame(g,players){
+  const order=g.order;
+  const results=order.filter(u=>players[u]).sort((a,b)=>(players[b].chips||0)-(players[a].chips||0)).map((uid,i)=>({uid,nick:players[uid].nick,chips:players[uid].chips||0,rank:i+1}));
+  await update(ref(db,`rooms/${roomCode}`),{status:'ended',results});
+}
+
+function showResult(d){
+  stopAll();const results=d.results||[];
+  const list=$('rList');list.innerHTML='';
+  results.forEach((r,i)=>{
+    const d2=document.createElement('div');d2.className='ri';const rn=i+1;
+    d2.innerHTML=`<div class="rr ${rn<=3?'r'+rn:''}">${rn}</div><div class="rname">${r.nick}${r.uid===myUID?' <span style="color:var(--g);font-size:9px">(나)</span>':''}</div><div class="rchip">${fmt(r.chips)}칩</div>`;
+    list.appendChild(d2);
+    if(r.uid===myUID)saveHist({date:new Date().toLocaleDateString(),rank:rn,chips:r.chips});
+  });
+  $('rSub').textContent=`총 ${results.length}명 참여`;showS('sResult');
+}
+
+// ─── 핸드 평가 ───
+function evalBest5(cards){
+  const v=cards.filter(c=>c&&c.r&&c.s);if(v.length<2)return{rank:0,name:'?'};
+  const cs=getCombos(v,Math.min(5,v.length));let best={rank:0,name:'하이카드'};
+  for(const c of cs){const s=score5(c);if(s.rank>best.rank)best=s;}return best;
+}
+function getCombos(a,k){if(k===0)return[[]];if(!a.length)return[];const[f,...r]=a;return[...getCombos(r,k-1).map(c=>[f,...c]),...getCombos(r,k)];}
+function score5(cards){
+  if(!cards||cards.length<2)return{rank:0,name:'하이카드'};
+  const vals=cards.map(c=>RV[c.r]||0).sort((a,b)=>b-a);
+  const sus=cards.map(c=>c.s);
+  const fl=cards.length===5&&new Set(sus).size===1;
+  const st=cards.length===5&&(vals.every((v,i)=>i===0||vals[i-1]-v===1)||(vals[0]===14&&vals[1]===5&&vals[2]===4&&vals[3]===3&&vals[4]===2));
+  const cnt={};for(const v of vals)cnt[v]=(cnt[v]||0)+1;const grp=Object.values(cnt).sort((a,b)=>b-a);
+  if(cards.length===5){
+    if(fl&&st&&vals[0]===14&&vals[1]===13)return{rank:9,name:'🏆 로열플러시'};
+    if(fl&&st)return{rank:8,name:'🔥 스트레이트플러시'};
+    if(grp[0]===4)return{rank:7,name:'💥 포카드'};
+    if(grp[0]===3&&grp[1]===2)return{rank:6,name:'🏠 풀하우스'};
+    if(fl)return{rank:5,name:'🌊 플러시'};
+    if(st)return{rank:4,name:'➡️ 스트레이트'};
+    if(grp[0]===3)return{rank:3,name:'🎲 트리플'};
+    if(grp[0]===2&&grp[1]===2)return{rank:2,name:'👥 투페어'};
+    if(grp[0]===2)return{rank:1,name:'✌️ 원페어'};
+  }else if(grp[0]===2)return{rank:1,name:'✌️ 원페어'};
+  return{rank:0,name:'🎴 하이카드'};
+}
+
+// ─── 종료 버튼 ───
+$('btnEnd').addEventListener('click',()=>{if(!isHost){toast('방장만 종료 가능합니다.','err');return;}$('endModal').classList.remove('hidden');});
+$('mNo').addEventListener('click',()=>$('endModal').classList.add('hidden'));
+$('mYes').addEventListener('click',async()=>{$('endModal').classList.add('hidden');if(!roomCode||!gs)return;await endGame(gs,gs.players);});
+$('btnToMain').addEventListener('click',async()=>{if(roomCode)await remove(ref(db,`rooms/${roomCode}`));stopAll();roomCode=null;renderHist();showS('sMain');});
+window.addEventListener('beforeunload',()=>{if(roomCode&&!isHost)remove(ref(db,`rooms/${roomCode}/players/${myUID}`));});
+</script>
+</body>
+</html>
