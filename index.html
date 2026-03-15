@@ -48,7 +48,7 @@ input.inp::placeholder{color:rgba(138,122,90,.35);}
 .code-inp{text-align:center;font-family:'DM Mono',monospace;font-size:16px;letter-spacing:7px;text-transform:uppercase;color:var(--gl);}
 .spin{width:15px;height:15px;border:2px solid rgba(201,168,76,.18);border-top-color:var(--g);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;margin-right:4px;}
 @keyframes spin{to{transform:rotate(360deg);}}
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--s2);border:1px solid rgba(201,168,76,.2);border-radius:8px;padding:8px 15px;font-size:11px;color:var(--tx);opacity:0;transition:all .3s;z-index:9999;white-space:nowrap;box-shadow:0 8px 25px rgba(0,0,0,.6);}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--s2);border:1px solid rgba(201,168,76,.2);border-radius:8px;padding:8px 15px;font-size:11px;color:var(--tx);opacity:0;transition:all .3s;z-index:9999;white-space:nowrap;box-shadow:0 8px 25px rgba(0,0,0,.6);pointer-events:none;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .toast.err{border-color:rgba(192,57,43,.4);color:var(--rl);}
 .toast.ok{border-color:rgba(74,222,128,.3);color:#4ade80;}
@@ -170,7 +170,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:18px;h
 .rr{font-family:'Cinzel Decorative',serif;font-size:15px;color:var(--dm);width:24px;text-align:center;}
 .rr.r1{color:var(--gl);}.rr.r2{color:#c0c0c0;}.rr.r3{color:#cd7f32;}
 .rname{flex:1;font-size:12px;font-weight:700;}.rchip{font-family:'DM Mono',monospace;font-size:10px;color:var(--g);}
-.blup{position:fixed;top:54px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(201,168,76,.9),rgba(139,110,46,.9));color:#1a0f00;padding:6px 16px;border-radius:16px;font-family:'Cinzel Decorative',serif;font-size:9px;font-weight:700;letter-spacing:1px;z-index:500;opacity:0;transition:opacity .3s;box-shadow:0 4px 16px rgba(201,168,76,.35);}
+.blup{position:fixed;top:54px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(201,168,76,.9),rgba(139,110,46,.9));color:#1a0f00;padding:6px 16px;border-radius:16px;font-family:'Cinzel Decorative',serif;font-size:9px;font-weight:700;letter-spacing:1px;z-index:500;opacity:0;transition:opacity .3s;box-shadow:0 4px 16px rgba(201,168,76,.35);pointer-events:none;}
 .blup.show{opacity:1;}
 </style>
 </head>
