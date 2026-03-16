@@ -818,6 +818,31 @@ async function doAct(type,amount){
     pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';}
   const notFd=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
   if(notFd.length===1){players[notFd[0]].chips+=pot;const prevP=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,_prevPot:prevP,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'foldwin',revealCount:g.revealCount||0});return;}
+  // ── 올인 즉시 런아웃 감지 (done 체크 전에 먼저 확인) ──
+  // 나 외 모든 생존자가 allin/folded 상태면 → 즉시 런아웃
+  const notFoldedNow = order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
+  const allinNow = order.filter(u=>players[u].status==='allin');
+  const activeNow = order.filter(u=>players[u].status==='active');
+  // 올인 런아웃 조건: 생존자 2명 이상, 올인이 1명 이상, 액티브가 0명이거나
+  // 액티브가 나 혼자이고 나 외 모두 allin/folded
+  const othersAllDone = order.filter(u=>u!==myUID).every(u=>{
+    const s=players[u]?.status;
+    return s==='allin'||s==='folded'||s==='out';
+  });
+  const isAllinRunout = notFoldedNow.length>=2 && allinNow.length>=1 &&
+    (activeNow.length===0 || (activeNow.length===1 && othersAllDone));
+  if(isAllinRunout){
+    order.forEach(uid=>{
+      if(players[uid].status==='active'||players[uid].status==='allin')
+        players[uid].bet=0;
+    });
+    await update(ref(db,`rooms/${roomCode}/game`),{
+      ...g,players,pot:0,curBet:0,
+      phase:'allin_runout_0',_prevPot:pot
+    });
+    return;
+  }
+
   const nextI=nextAct(order,players,g.curI);
   const active=order.filter(u=>players[u].status==='active');
   // 베팅 라운드 종료 조건
@@ -833,41 +858,9 @@ async function doAct(type,amount){
   const done = (allMatched && allActed) || (onlyOneCanAct && allMatched) || isAllInShowdown;
   if(done){
     // 모든 플레이어가 올인/폴드인지 확인
-    const afterActive=order.filter(u=>players[u].status==='active');
-    const afterAllin=order.filter(u=>players[u].status==='allin');
-    const afterNotFolded=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
-
-    // 올인 런아웃 조건:
-    // 1) 액티브가 0명 + 올인이 1명 이상 + 생존자 2명 이상 (기존)
-    // 2) 액티브가 1명이지만 그 1명이 방금 콜한 나 자신이고
-    //    나 외에 뒤에 액션할 사람이 없는 경우 (콜 후 올인쇼다운)
-    const iAmActive = players[myUID]?.status === 'active';
-    const othersAllAllinOrFolded = order.filter(u=>u!==myUID).every(u=>{
-      const s=players[u]?.status;
-      return s==='allin'||s==='folded'||s==='out';
-    });
-    // 뒤에 액션할 사람 없는지 확인 (내 다음부터 lastRaiser까지)
-    const myIdx2=order.indexOf(myUID);
-    let hasActiveBehind=false;
-    for(let i=1;i<order.length;i++){
-      const idx2=(myIdx2+i)%order.length;
-      if(idx2===lastRI)break;
-      if(players[order[idx2]]?.status==='active')hasActiveBehind=true;
-    }
-    const callAllinShowdown = type==='call' && iAmActive && othersAllAllinOrFolded && !hasActiveBehind && afterAllin.length>=1 && afterNotFolded.length>=2;
-    const pureAllinShowdown = afterActive.length===0 && afterAllin.length>=1 && afterNotFolded.length>=2;
-
-    if(pureAllinShowdown || callAllinShowdown){
-      // 올인 쇼다운 → Firebase에 allin_runout_0 저장
-      order.forEach(uid=>{
-        if(players[uid].status==='active')players[uid].bet=0;
-        if(players[uid].status==='allin')players[uid].bet=0;
-      });
-      await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot:0,curBet:0,phase:'allin_runout_0',_prevPot:pot});
-    } else {
-      const ns=await advPhase(g,players,pot,curBet,minR);
-      await update(ref(db,`rooms/${roomCode}/game`),ns);
-    }
+    // 일반 스트리트 진행
+    const ns=await advPhase(g,players,pot,curBet,minR);
+    await update(ref(db,`rooms/${roomCode}/game`),ns);
   }
   else await update(ref(db,`rooms/${roomCode}/game`),{players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,curI:nextI});
 }
