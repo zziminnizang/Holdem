@@ -418,7 +418,7 @@ async function startGame(code,players){
     if(n===2&&i===0){pos='btn/sb';const paid=Math.min(sbV,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
     if(i===sbI&&n>2){pos='sb';const paid=Math.min(sbV,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
     if(i===bbI){pos='bb';const paid=Math.min(bbV,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}
-    np[p.uid]={nick:p.nick,uid:p.uid,isHost:p.isHost,chips,bet,pos,status:st,rebuys:p.rebuys||0,lastAction:'',hand:[deck[di++],deck[di++]]};
+    np[p.uid]={nick:p.nick,uid:p.uid,isHost:p.isHost,chips,bet,pos,status:st,rebuys:p.rebuys||0,lastAction:'',hasActed:false,hand:[deck[di++],deck[di++]]};
   });
   const community=[deck[di++],deck[di++],deck[di++],deck[di++],deck[di++]];
   const pot=(np[arr[n===2?0:sbI].uid]?.bet||0)+(np[arr[bbI].uid]?.bet||0);
@@ -515,6 +515,7 @@ async function doAct(type,amount){
   const players=JSON.parse(JSON.stringify(g.players));
   let pot=g.pot||0,curBet=g.curBet||0,minR=g.minRaise||BL[Math.min(g.blindLv||0,BL.length-1)][1],lastRI=g.lastRaiserI??g.curI;
   const p=players[myUID];
+  p.hasActed=true;
   if(type==='fold'){p.status='folded';p.lastAction='fold';}
   else if(type==='check'){p.lastAction='check';}
   else if(type==='call'){const tc=Math.min(curBet-p.bet,p.chips);pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';if(p.chips<=0)p.status='allin';}
@@ -524,9 +525,11 @@ async function doAct(type,amount){
   if(notFd.length===1){players[notFd[0]].chips+=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'showdown',revealCount:5});return;}
   const nextI=nextAct(order,players,g.curI);
   const active=order.filter(u=>players[u].status==='active');
-  const allM=active.every(u=>(players[u].bet||0)>=curBet)||active.length===0;
-  const nxtR=nextActFrom(order,players,lastRI);
-  const done=allM&&(active.length===0||nextI===nxtR);
+  // 베팅 라운드 종료 조건
+  const allMatched = active.length===0 || active.every(u=>(players[u].bet||0)>=curBet);
+  // 모든 액티브 플레이어가 이번 스트리트에서 최소 1번 액션했는지 확인
+  const allActed = active.every(u=>players[u].hasActed===true);
+  const done = allMatched && allActed;
   if(done){const ns=await advPhase(g,players,pot,curBet,minR);await update(ref(db,`rooms/${roomCode}/game`),ns);}
   else await update(ref(db,`rooms/${roomCode}/game`),{players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,curI:nextI});
 }
