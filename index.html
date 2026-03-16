@@ -157,6 +157,36 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:22px;h
 .rchip{font-family:‘DM Mono’,monospace;font-size:11px;color:var(–g);}
 .blup{position:fixed;top:58px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,rgba(201,168,76,.9),rgba(139,110,46,.9));color:#1a0f00;padding:7px 18px;border-radius:18px;font-family:‘Cinzel Decorative’,serif;font-size:10px;font-weight:700;letter-spacing:1px;z-index:500;opacity:0;transition:opacity .3s;pointer-events:none;}
 .blup.show{opacity:1;}
+
+/* 올인 런아웃 오버레이 */
+.runout-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.92);flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:20px;}
+.runout-overlay.show{display:flex;}
+.runout-title{font-family:‘Cinzel Decorative’,serif;font-size:16px;color:var(–gl);letter-spacing:3px;text-align:center;}
+.runout-players{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;}
+.runout-player{display:flex;flex-direction:column;align-items:center;gap:8px;}
+.runout-cards{display:flex;gap:6px;}
+.runout-card{width:48px;height:68px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;box-shadow:0 4px 16px rgba(0,0,0,.6);transition:transform .3s;}
+.runout-card.face{background:linear-gradient(160deg,#faf6ec,#eee8d5);border:1px solid rgba(0,0,0,.14);}
+.runout-card.back{background:linear-gradient(135deg,#1e3a28,#0f2018);border:1px solid rgba(201,168,76,.3);}
+.runout-name{font-size:12px;font-weight:700;color:var(–tx);}
+.runout-hand{font-size:10px;color:var(–dm);}
+.runout-board{display:flex;flex-direction:column;align-items:center;gap:10px;}
+.runout-board-label{font-size:9px;color:var(–dm);letter-spacing:2px;text-transform:uppercase;}
+.runout-board-cards{display:flex;gap:6px;}
+.runout-board-card{width:42px;height:60px;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;box-shadow:0 3px 12px rgba(0,0,0,.5);}
+.runout-board-card.face{background:linear-gradient(160deg,#f8f4ea,#ede8d8);border:1px solid rgba(0,0,0,.15);}
+.runout-board-card.back{background:linear-gradient(135deg,#1e3a28,#0f2018);border:1px solid rgba(201,168,76,.2);}
+.runout-board-card.empty{background:rgba(0,0,0,.2);border:1px dashed rgba(201,168,76,.1);}
+/* 카드 뒤집기 3D 애니메이션 */
+.card-flip-wrap{perspective:600px;width:42px;height:60px;}
+.card-flip-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .8s cubic-bezier(.4,0,.2,1);}
+.card-flip-inner.flipped{transform:rotateY(180deg);}
+.card-flip-front,.card-flip-back{position:absolute;inset:0;border-radius:7px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;backface-visibility:hidden;-webkit-backface-visibility:hidden;}
+.card-flip-back{background:linear-gradient(135deg,#1e3a28,#0f2018);border:1px solid rgba(201,168,76,.25);box-shadow:0 3px 12px rgba(0,0,0,.5);}
+.card-flip-front{background:linear-gradient(160deg,#f8f4ea,#ede8d8);border:1px solid rgba(0,0,0,.14);transform:rotateY(180deg);box-shadow:0 3px 12px rgba(0,0,0,.5);}
+@keyframes cardReveal{0%{transform:scale(.7) rotateY(-30deg);opacity:0;}60%{transform:scale(1.08);opacity:1;}100%{transform:scale(1) rotateY(0);}  }
+.runout-pot{font-family:‘DM Mono’,monospace;font-size:14px;color:var(–gl);text-align:center;}
+.runout-status{font-size:11px;color:var(–dm);text-align:center;letter-spacing:1px;min-height:18px;}
 </style>
 
 </head>
@@ -301,6 +331,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:22px;h
   <div class="mbox"><div class="mtitle">게임을 종료하시겠습니까?</div><div class="mtext">현재 게임을 끝내고<br>최종 결과를 확인합니다.</div><div class="mbtns"><button class="mbtn mb-c" id="mNo">취소</button><button class="mbtn mb-ok" id="mYes">종료</button></div></div>
 </div>
 <div class="sdov" id="sdOv"></div>
+<div class="runout-overlay" id="runoutOv"></div>
 <div class="rbov" id="rbOv">
   <div class="rbt">칩이 소진되었습니다</div>
   <div class="rbs" id="rbTxt">리바인으로 20,000칩을 받고<br>계속하시겠습니까?<br><span id="rbNote" style="color:var(--rl)"></span></div>
@@ -446,8 +477,10 @@ function renderGame(g){
     if(window._sdTimer){clearInterval(window._sdTimer);window._sdTimer=null;}
     $('sdOv').classList.remove('show');
     $('sdOv').innerHTML='';
+    $('runoutOv').classList.remove('show');
+    $('runoutOv').innerHTML='';
   }
-  if(g.phase==='showdown'&&!$('sdOv').classList.contains('show')){
+  if(g.phase==='showdown'&&!$('sdOv').classList.contains('show')&&!$('runoutOv').classList.contains('show')){
     // pot이 0으로 초기화되기 전 값 보존
     if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
     showSD(g);
@@ -547,7 +580,10 @@ async function doAct(type,amount){
   // 액티브가 1명 이하고 나머지 모두 올인/폴드면 자동 진행
   const onlyOneCanAct = active.length<=1 && order.filter(u=>players[u].status==='allin').length>0;
   const done = (allMatched && allActed) || (onlyOneCanAct && allMatched);
-  if(done){const ns=await advPhase(g,players,pot,curBet,minR);await update(ref(db,`rooms/${roomCode}/game`),ns);}
+  if(done){
+    const ns=await advPhase(g,players,pot,curBet,minR);
+    await update(ref(db,`rooms/${roomCode}/game`),ns);
+  }
   else await update(ref(db,`rooms/${roomCode}/game`),{players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,curI:nextI});
 }
 function nextAct(order,players,curI){for(let i=1;i<order.length;i++){const idx=(curI+i)%order.length;if(players[order[idx]]?.status==='active')return idx;}return curI;}
@@ -575,8 +611,11 @@ async function advPhase(g,players,pot,curBet,minR){
   const firstI = nextActFrom(g.order,players,(postFlopFirst-1+g.order.length)%g.order.length);
   const lastActorI=prevActFrom(order,players,firstI);
   const newState={...g,phase,revealCount:rev,pot,players,curBet:0,minRaise:bb,lastRaiserI:lastActorI,curI:firstI};
-  // 모두 올인이면 자동으로 보드 계속 깔기
-  if(active.length===0){return advPhase(newState,players,pot,0,bb);}
+  // 모두 올인이면 드라마틱 런아웃 시작 (방장만)
+  if(active.length===0){
+    startDramaticRunout(newState,players,pot); // 모든 플레이어가 애니메이션 봄
+    return newState; // 일단 현재 상태 저장, 런아웃이 알아서 진행
+  }
   return newState;
 }
 function doSD(g,players,pot){
@@ -587,6 +626,167 @@ function doSD(g,players,pot){
   const each=Math.floor(pot/winners.length),rem=pot%winners.length;winners.forEach((w,i)=>{players[w.uid].chips+=(each+(i===0?rem:0));});
   return{...g,phase:'showdown',revealCount:5,players,pot:0,_prevPot:pot};
 }
+
+// ── 드라마틱 올인 런아웃 ──
+async function startDramaticRunout(g, players, pot) {
+  const order = g.order;
+  const notFolded = order.filter(u => players[u].status !== 'folded' && players[u].status !== 'out');
+  const community = g.community || [];
+  const currentPhase = g.phase;
+
+  // 런아웃 오버레이 표시
+  const ov = $('runoutOv');
+  ov.innerHTML = '';
+  ov.classList.add('show');
+
+  // 제목
+  const title = document.createElement('div');
+  title.className = 'runout-title';
+  title.textContent = '✦ ALL IN ✦';
+  ov.appendChild(title);
+
+  // 팟 표시
+  const potEl = document.createElement('div');
+  potEl.className = 'runout-pot';
+  potEl.textContent = '🪙 POT ' + fmt(pot);
+  ov.appendChild(potEl);
+
+  // 플레이어 카드 공개
+  const playersWrap = document.createElement('div');
+  playersWrap.className = 'runout-players';
+  notFolded.forEach(uid => {
+    const p = players[uid];
+    const wrap = document.createElement('div');
+    wrap.className = 'runout-player';
+    const cards = document.createElement('div');
+    cards.className = 'runout-cards';
+    (p.hand || []).forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'runout-card face';
+      card.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+      card.innerHTML = `<span style="font-size:18px;line-height:1">${c.r}</span><span style="font-size:22px;line-height:1">${c.s}</span>`;
+      cards.appendChild(card);
+    });
+    const name = document.createElement('div');
+    name.className = 'runout-name';
+    name.textContent = p.nick;
+    wrap.appendChild(cards);
+    wrap.appendChild(name);
+    playersWrap.appendChild(wrap);
+  });
+  ov.appendChild(playersWrap);
+
+  // 보드 영역
+  const boardWrap = document.createElement('div');
+  boardWrap.className = 'runout-board';
+  const boardLabel = document.createElement('div');
+  boardLabel.className = 'runout-board-label';
+  boardLabel.textContent = 'BOARD';
+  boardWrap.appendChild(boardLabel);
+
+  const boardCards = document.createElement('div');
+  boardCards.className = 'runout-board-cards';
+  boardWrap.appendChild(boardCards);
+  ov.appendChild(boardWrap);
+
+  // 상태 메시지
+  const statusEl = document.createElement('div');
+  statusEl.className = 'runout-status';
+  ov.appendChild(statusEl);
+
+  // 현재 깔린 카드 수 파악
+  let revealedSoFar = currentPhase === 'flop' ? 3 : currentPhase === 'turn' ? 4 : currentPhase === 'river' ? 5 : 0;
+
+  // 이미 깔린 카드 표시
+  for (let i = 0; i < 5; i++) {
+    const slot = document.createElement('div');
+    if (i < revealedSoFar && community[i]) {
+      slot.className = 'runout-board-card face';
+      slot.style.color = isRed(community[i].s) ? '#c0392b' : '#1a1a1a';
+      slot.innerHTML = `<span style="font-size:14px;line-height:1">${community[i].r}</span><span style="font-size:18px;line-height:1">${community[i].s}</span>`;
+    } else {
+      slot.className = 'runout-board-card empty';
+    }
+    boardCards.appendChild(slot);
+  }
+
+  const delay = ms => new Promise(r => setTimeout(r, ms));
+  const slots = boardCards.children;
+
+  await delay(1500); // 카드 공개 후 잠시 대기
+
+  // 플랍 (3장 동시)
+  if (revealedSoFar < 3) {
+    statusEl.textContent = 'FLOP';
+    for (let i = 0; i < 3; i++) {
+      const c = community[i];
+      if (!c) continue;
+      // 카드 뒤집기 애니메이션
+      slots[i].className = 'runout-board-card face';
+      slots[i].style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+      slots[i].innerHTML = `<span style="font-size:14px;line-height:1">${c.r}</span><span style="font-size:18px;line-height:1">${c.s}</span>`;
+      slots[i].style.animation = 'cardReveal .4s ease';
+      await delay(150);
+    }
+    revealedSoFar = 3;
+    await delay(2000);
+  }
+
+  // 턴 (1장)
+  if (revealedSoFar < 4) {
+    statusEl.textContent = 'TURN';
+    const c = community[3];
+    if (c) {
+      slots[3].className = 'runout-board-card face';
+      slots[3].style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+      slots[3].innerHTML = `<span style="font-size:14px;line-height:1">${c.r}</span><span style="font-size:18px;line-height:1">${c.s}</span>`;
+      slots[3].style.animation = 'cardReveal .4s ease';
+    }
+    revealedSoFar = 4;
+    await delay(2000);
+  }
+
+  // 리버 (천천히 뒤집기 - 3D flip)
+  if (revealedSoFar < 5) {
+    statusEl.textContent = 'RIVER';
+    const c = community[4];
+    if (c) {
+      // 3D 뒤집기를 위해 카드 재구성
+      const flipWrap = document.createElement('div');
+      flipWrap.className = 'card-flip-wrap';
+      const flipInner = document.createElement('div');
+      flipInner.className = 'card-flip-inner';
+      const flipBack = document.createElement('div');
+      flipBack.className = 'card-flip-back';
+      flipBack.innerHTML = '<span style="font-size:20px;color:rgba(201,168,76,.4)">♠</span>';
+      const flipFront = document.createElement('div');
+      flipFront.className = 'card-flip-front';
+      flipFront.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+      flipFront.innerHTML = `<span style="font-size:14px;line-height:1">${c.r}</span><span style="font-size:18px;line-height:1">${c.s}</span>`;
+      flipInner.appendChild(flipBack);
+      flipInner.appendChild(flipFront);
+      flipWrap.appendChild(flipInner);
+      slots[4].replaceWith(flipWrap);
+      await delay(500);
+      flipInner.classList.add('flipped');
+      await delay(1200);
+    }
+    revealedSoFar = 5;
+  }
+
+  await delay(800);
+  statusEl.textContent = '결과 확인 중...';
+  await delay(600);
+
+  // 결과 처리 - Firebase 업데이트
+  ov.classList.remove('show');
+  ov.innerHTML = '';
+
+  // 최종 showdown 상태로 업데이트
+  const finalState = doSD(g, players, pot);
+  await update(ref(db, `rooms/${roomCode}/game`), finalState);
+}
+
 function showSD(g){
   const order=g.order;
   const nf=order.filter(u=>g.players[u].status!=='folded'&&g.players[u].status!=='out');
