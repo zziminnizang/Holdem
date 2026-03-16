@@ -521,6 +521,15 @@ function renderMyArea(g){
   const mc=$('myCards');mc.innerHTML='';
   if(me.hand&&me.status!=='out'){me.hand.forEach(c=>{const d=document.createElement('div');if(me.status==='folded'){d.className='mc bk';d.innerHTML='<span style="font-size:18px;color:rgba(201,168,76,.25)">🂠</span>';}else{d.className='mc fc';d.innerHTML=`<span class="mr ${isRed(c.s)?'red':'blk'}">${c.r}</span><span class="ms ${isRed(c.s)?'red':'blk'}">${c.s}</span>`;}mc.appendChild(d);});}
   const myTurn=g.order[g.curI]===myUID,isFd=me.status==='folded'||me.status==='out';
+  // 올인 쇼다운 진행 중이면 버튼 전부 숨기기
+  const runoutActive=$('runoutOv').classList.contains('show');
+  if(g.phase==='showdown'||runoutActive){
+    $('atimer').classList.remove('show');
+    $('wmsg').classList.remove('show');
+    $('actBtns').innerHTML='';
+    $('rpanel').classList.remove('show');
+    return;
+  }
   if(myTurn&&!isFd){$('atimer').classList.add('show');$('wmsg').classList.remove('show');renderActBtns(g,me);}
   else{$('atimer').classList.remove('show');if(!isFd)$('wmsg').classList.add('show');else $('wmsg').classList.remove('show');$('actBtns').innerHTML='';$('rpanel').classList.remove('show');}
 }
@@ -586,24 +595,33 @@ function openRaise(g,me){
   const curBet=g.curBet||0,myBet=me.bet||0,myChips=me.chips||0;
   const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];const minR=g.minRaise||bb;
   const minT=curBet+minR,maxT=myBet+myChips;
-  const sl=$('rsl');sl.min=minT;sl.max=maxT;sl.step=100;
-  // 최솟값을 100 단위로 올림
-  const stepMin=Math.ceil(minT/100)*100;
-  sl.value=stepMin;raiseV=stepMin;
+  const sl=$('rsl');
+  const stepMin=Math.ceil(minT/100)*100;   // 최솟값 100단위 올림
+  const stepMax=Math.floor(maxT/100)*100;  // 최댓값 100단위 내림 (올인은 별도)
+  sl.min=stepMin;
+  sl.max=stepMax;
+  sl.step=100;  // 한 칸 = 100칩
+  sl.value=stepMin;
+  raiseV=stepMin;
   $('ramt').textContent=fmt(raiseV);$('rpanel').classList.add('show');
   const upd=()=>{
+    // step=100이므로 브라우저가 자동으로 100단위 스냅하지만
+    // iOS 보정을 위해 수동으로도 100단위로 고정
     let v=Math.round(+sl.value/100)*100;
-    const stepMin=Math.ceil(minT/100)*100;
-    const stepMax=Math.floor(maxT/100)*100;
     v=Math.max(stepMin,Math.min(stepMax,v));
     raiseV=v;sl.value=v;
     $('ramt').textContent=fmt(raiseV);
-    const p=((raiseV-minT)/(maxT-minT||1))*100;
+    const p=((v-stepMin)/(stepMax-stepMin||1))*100;
     sl.style.background=`linear-gradient(to right,var(--g) 0%,var(--g) ${p}%,rgba(255,255,255,.08) ${p}%)`;
   };
   sl.oninput=upd;upd();
-  document.querySelectorAll('.rpbtn').forEach(b=>{b.onclick=()=>{const p=+b.dataset.p/100;let v=Math.round(curBet+(g.pot||0)*p);v=Math.round(v/100)*100;v=Math.max(Math.ceil(minT/100)*100,Math.min(Math.floor(maxT/100)*100,v));sl.value=v;raiseV=v;upd();};});
-  $('rcf').onclick=()=>{$('rpanel').classList.remove('show');doAct('raise',raiseV);};
+  document.querySelectorAll('.rpbtn').forEach(b=>{b.onclick=()=>{const p=+b.dataset.p/100;let v=Math.round(curBet+(g.pot||0)*p);v=Math.round(v/100)*100;v=Math.max(stepMin,Math.min(stepMax,v));sl.value=v;raiseV=v;upd();};});
+  $('rcf').onclick=()=>{
+    $('rpanel').classList.remove('show');
+    // raiseV가 실제 최대 스택이면 올인 처리
+    if(raiseV>=maxT)doAct('allin',maxT);
+    else doAct('raise',raiseV);
+  };
 }
 function startActTimer(g){
   clearInterval(actTI);let s=ACT_S;
