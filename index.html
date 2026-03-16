@@ -441,7 +441,16 @@ function renderGame(g){
   const lv=Math.min(g.blindLv||0,BL.length-1);const[sb,bb]=BL[lv];
   $('hudB').textContent=`${fmt(sb)}/${fmt(bb)}`;$('hudLv').textContent=`LEVEL ${lv+1}`;$('potV').textContent=fmt(g.pot||0);
   renderComm(g);renderSeats(g);renderMyArea(g);
-  if(g.phase==='showdown'&&!$('sdOv').classList.contains('show'))showSD(g);
+  // 새 핸드 시작되면 오버레이 닫기
+  if(g.phase!=='showdown'){
+    $('sdOv').classList.remove('show');
+    $('sdOv').innerHTML='';
+  }
+  if(g.phase==='showdown'&&!$('sdOv').classList.contains('show')){
+    // pot이 0으로 초기화되기 전 값 보존
+    if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
+    showSD(g);
+  }
 }
 function renderComm(g){
   const el=$('comm');el.innerHTML='';
@@ -527,7 +536,7 @@ async function doAct(type,amount){
     order.forEach(u=>{if(u!==myUID&&players[u].status==='active')players[u].hasActed=false;});}
     pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';}
   const notFd=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
-  if(notFd.length===1){players[notFd[0]].chips+=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'showdown',revealCount:5});return;}
+  if(notFd.length===1){players[notFd[0]].chips+=pot;const prevP=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,_prevPot:prevP,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'showdown',revealCount:5});return;}
   const nextI=nextAct(order,players,g.curI);
   const active=order.filter(u=>players[u].status==='active');
   // 베팅 라운드 종료 조건
@@ -569,29 +578,71 @@ async function advPhase(g,players,pot,curBet,minR){
   return newState;
 }
 function doSD(g,players,pot){
+  g._prevPot=pot; // 팟 수령 표시용 저장
   const order=g.order;const nf=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
   const scores=nf.map(uid=>{const p=players[uid];return{uid,score:evalBest5([...(p.hand||[]),...(g.community||[])])};});
   scores.sort((a,b)=>b.score.rank-a.score.rank);const topR=scores[0]?.score.rank;const winners=scores.filter(s=>s.score.rank===topR);
   const each=Math.floor(pot/winners.length),rem=pot%winners.length;winners.forEach((w,i)=>{players[w.uid].chips+=(each+(i===0?rem:0));});
-  return{...g,phase:'showdown',revealCount:5,players,pot:0};
+  return{...g,phase:'showdown',revealCount:5,players,pot:0,_prevPot:pot};
 }
 function showSD(g){
-  const order=g.order;const nf=order.filter(u=>g.players[u].status!=='folded'&&g.players[u].status!=='out');
-  const scores=nf.map(uid=>{const p=g.players[uid];return{uid,score:evalBest5([...(p.hand||[]),...(g.community||[])]),nick:p.nick,chips:p.chips};});
-  scores.sort((a,b)=>b.score.rank-a.score.rank);const topR=scores[0]?.score.rank;
+  const order=g.order;
+  const nf=order.filter(u=>g.players[u].status!=='folded'&&g.players[u].status!=='out');
+  const scores=nf.map(uid=>{
+    const p=g.players[uid];
+    return{uid,score:evalBest5([...(p.hand||[]),...(g.community||[])]),nick:p.nick,chips:p.chips};
+  });
+  scores.sort((a,b)=>b.score.rank-a.score.rank);
+  const topR=scores[0]?.score.rank;
+  const winners=scores.filter(s=>s.score.rank===topR);
+
   const ov=$('sdOv');ov.innerHTML='';ov.classList.add('show');
+
+  // 제목
   const t=document.createElement('div');t.className='sdt';t.textContent='✦ 쇼다운 ✦';ov.appendChild(t);
-  scores.forEach(sc=>{const p=g.players[sc.uid];const win=sc.score.rank===topR;const d=document.createElement('div');d.className=`sdpl${win?' win':''}`;const cs=document.createElement('div');cs.className='sdcs';(p.hand||[]).forEach(c=>{const cd=document.createElement('div');cd.className='sdc';cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';cd.innerHTML=`<span>${c.r}</span><span style="font-size:9px">${c.s}</span>`;cs.appendChild(cd);});const info=document.createElement('div');info.innerHTML=`<div class="sdn">${win?'🏆 ':''}${p.nick}</div><div class="sdh">${sc.score.name}</div><div class="sdw">${fmt(p.chips)}칩 보유</div>`;d.appendChild(cs);d.appendChild(info);ov.appendChild(d);});
-  // 3초 후 자동 다음 핸드 (방장만 실행)
+
+  // 팟 수령 표시
+  const totalPot=g._prevPot||0;
+  if(winners.length>0&&totalPot>0){
+    const pw=document.createElement('div');
+    pw.style.cssText='font-size:12px;color:var(--gl);text-align:center;margin-bottom:6px;font-family:"DM Mono",monospace;';
+    const wNames=winners.map(w=>w.nick).join(', ');
+    pw.textContent=wNames+' → +'+fmt(Math.floor(totalPot/winners.length))+'칩';
+    ov.appendChild(pw);
+  }
+
+  // 플레이어 카드/핸드 표시
+  scores.forEach(sc=>{
+    const p=g.players[sc.uid];const win=sc.score.rank===topR;
+    const d=document.createElement('div');d.className='sdpl'+(win?' win':'');
+    const cs=document.createElement('div');cs.className='sdcs';
+    (p.hand||[]).forEach(c=>{
+      const cd=document.createElement('div');cd.className='sdc';
+      cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';
+      cd.innerHTML='<span>'+c.r+'</span><span style="font-size:9px">'+c.s+'</span>';
+      cs.appendChild(cd);
+    });
+    const info=document.createElement('div');
+    info.innerHTML='<div class="sdn">'+(win?'🏆 ':'')+p.nick+'</div><div class="sdh">'+sc.score.name+'</div><div class="sdw">'+fmt(p.chips)+'칩 보유</div>';
+    d.appendChild(cs);d.appendChild(info);ov.appendChild(d);
+  });
+
+  // 3초 카운트다운 (모든 플레이어에게 표시)
   const countdown=document.createElement('div');
   countdown.style.cssText='font-size:13px;color:var(--dm);padding:8px;text-align:center;margin-top:4px';
-  countdown.textContent='3초 후 다음 핸드 시작...';
+  countdown.textContent='3초 후 다음 핸드...';
   ov.appendChild(countdown);
+
   let sec=3;
   const cdTimer=setInterval(()=>{
     sec--;
-    if(sec>0){countdown.textContent=sec+'초 후 다음 핸드 시작...';}
-    else{clearInterval(cdTimer);ov.classList.remove('show');if(isHost)nextHand(g);}
+    countdown.textContent=sec>0?sec+'초 후 다음 핸드...':'다음 핸드 준비 중...';
+    if(sec<=0){
+      clearInterval(cdTimer);
+      ov.classList.remove('show');
+      // 방장만 Firebase 업데이트 (다음 핸드 시작)
+      if(isHost)nextHand(g);
+    }
   },1000);
 }
 async function nextHand(g){
