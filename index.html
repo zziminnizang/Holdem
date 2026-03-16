@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 
 <html lang="ko">
 <head>
@@ -165,7 +165,7 @@ flex-shrink:0;
 .myinfo-nick{font-size:11px;font-weight:700;color:var(–gl);}
 .myinfo-chips{font-family:‘DM Mono’,monospace;font-size:11px;color:var(–g);}
 .myinfo-bb{font-size:10px;color:var(–dm);}
-.rejoin-overlay{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.95);flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px;}
+.rejoin-overlay{display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.95);flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:16px;}
 .rejoin-overlay.show{display:flex;}
 .rejoin-icon{font-size:48px;margin-bottom:4px;}
 .rejoin-title{font-family:‘Cinzel Decorative’,serif;font-size:18px;color:var(–gl);text-align:center;letter-spacing:2px;}
@@ -407,69 +407,74 @@ function renderHist(){const a=JSON.parse(localStorage.getItem('hh')||'[]');const
 if(myNick){
   checkRejoin();
 } else {
-  // 닉네임 없으면 그냥 닉네임 입력 화면
+  showS('sNick');
 }
 
 async function checkRejoin(){
-  // localStorage에 저장된 게임 정보 확인
   const savedRoom = localStorage.getItem('h_roomCode');
   const savedHost = localStorage.getItem('h_isHost');
-  if(!savedRoom){
-    showS('sMain');renderHist();return;
-  }
-  try{
-    const sn = await get(ref(db, `rooms/${savedRoom}`));
-    if(!sn.exists()){
-      // 방이 없으면 저장 정보 삭제 후 메인으로
-      clearSavedRoom();showS('sMain');renderHist();return;
-    }
+
+  // 저장된 방 없으면 바로 메인
+  if(!savedRoom){ showS('sMain'); renderHist(); return; }
+
+  try {
+    const sn = await get(ref(db, 'rooms/'+savedRoom));
+
+    // 방 없거나 종료됐으면 메인
+    if(!sn.exists()){ clearSavedRoom(); showS('sMain'); renderHist(); return; }
     const room = sn.val();
-    // 게임이 종료됐으면 메인으로
-    if(room.status==='ended'){clearSavedRoom();showS('sMain');renderHist();return;}
-    // 내가 해당 방에 있는지 확인
-    const players = room.players || {};
-    const gamePs = room.game?.players || {};
-    const inLobby = !!players[myUID];
-    const inGame = !!gamePs[myUID];
-    if(!inLobby && !inGame){clearSavedRoom();showS('sMain');renderHist();return;}
+    if(room.status==='ended'){ clearSavedRoom(); showS('sMain'); renderHist(); return; }
+
+    // 내가 이 방에 있는지 확인
+    const lobbyPs = room.players || {};
+    const gamePs  = (room.game && room.game.players) ? room.game.players : {};
+    const myInLobby = !!lobbyPs[myUID];
+    const myInGame  = !!gamePs[myUID];
+    if(!myInLobby && !myInGame){ clearSavedRoom(); showS('sMain'); renderHist(); return; }
 
     // 재접속 모달 표시
-    const myP = gamePs[myUID] || players[myUID] || {};
-    const lv = room.game?.blindLv || 0;
-    const bb = BLINDS_BB(lv);
-    $('rejoinCode').textContent = savedRoom;
-    $('rejoinNick').textContent = myNick;
-    $('rejoinChips').textContent = fmt(myP.chips||0) + '칩';
+    const myP = gamePs[myUID] || lobbyPs[myUID] || {};
+    $('rejoinCode').textContent  = savedRoom;
+    $('rejoinNick').textContent  = myNick;
+    $('rejoinChips').textContent = fmt(myP.chips || 0) + '칩';
     $('rejoinOv').classList.add('show');
 
-    $('btnRejoinYes').onclick = async ()=>{
+    $('btnRejoinYes').onclick = async () => {
       $('rejoinOv').classList.remove('show');
       roomCode = savedRoom;
-      isHost = savedHost === 'true';
+      isHost   = (savedHost === 'true');
       if(room.status === 'playing'){
-        showS('sGame');startGameListen(roomCode);
+        showS('sGame');
+        startGameListen(roomCode);
       } else {
-        // 대기실로
+        // 대기실 복귀
         if(isHost){
           $('dispCode').textContent = roomCode;
-          showS('sCreate');listenLobby(roomCode,true);
+          showS('sCreate');
+          listenLobby(roomCode, true);
         } else {
           $('wCode').textContent = roomCode;
-          $('jIn').style.display='none';$('jWait').style.display='';
-          showS('sJoin');listenLobby(roomCode,false);
+          $('jIn').style.display = 'none';
+          $('jWait').style.display = '';
+          showS('sJoin');
+          listenLobby(roomCode, false);
         }
       }
     };
-    $('btnRejoinNo').onclick = async ()=>{
+
+    $('btnRejoinNo').onclick = async () => {
       $('rejoinOv').classList.remove('show');
-      // 방에서 나가기
-      if(room.status==='waiting'){
-        await remove(ref(db,`rooms/${savedRoom}/players/${myUID}`));
+      if(room.status === 'waiting'){
+        await remove(ref(db, 'rooms/'+savedRoom+'/players/'+myUID));
       }
-      clearSavedRoom();showS('sMain');renderHist();
+      clearSavedRoom();
+      showS('sMain');
+      renderHist();
     };
-  } catch(e){
-    clearSavedRoom();showS('sMain');renderHist();
+
+  } catch(e) {
+    console.error('rejoin check error:', e);
+    clearSavedRoom(); showS('sMain'); renderHist();
   }
 }
 
@@ -575,6 +580,9 @@ async function startGame(code,players){
 }
 
 function startGameListen(code){
+  // 재접속을 위해 항상 최신 roomCode 저장
+  localStorage.setItem('h_roomCode', code);
+  localStorage.setItem('h_isHost', isHost ? 'true' : 'false');
   if(gameUnsub)gameUnsub();startBlindTimer();
   gameUnsub=onValue(ref(db,`rooms/${code}`),sn=>{
     if(!sn.exists())return;const d=sn.val();
