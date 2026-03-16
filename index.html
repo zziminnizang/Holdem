@@ -495,21 +495,24 @@ function renderGame(g){
     $('myInfoBB').textContent=bbRemain+'BB';
   }
   renderComm(g);renderSeats(g);renderMyArea(g);
-  // 새 핸드 시작 (preflop) → 오버레이 닫기
+  // 새 핸드 시작 → 모든 오버레이 닫기
   if(g.phase==='preflop'){
     if(window._sdTimer){clearInterval(window._sdTimer);window._sdTimer=null;}
-    if(window._runoutStarted){window._runoutStarted=false;}
+    window._lastRunoutPhase=null;
     $('sdOv').classList.remove('show');$('sdOv').innerHTML='';
     $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
   }
-  // 올인 런아웃 → 모든 클라이언트가 시작
-  if(g.phase==='allin_runout'&&!window._runoutStarted){
-    window._runoutStarted=true;
-    startDramaticRunout(g, g.players, g.pot||g._prevPot||0);
-  }
-  if(g.phase==='showdown'&&!$('sdOv').classList.contains('show')&&!$('runoutOv').classList.contains('show')){
-    if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
-    showSD(g);
+  // 올인 런아웃 단계별 처리
+  handleRunoutPhase(g);
+  // 일반 쇼다운
+  if(g.phase==='showdown'){
+    // 런아웃 오버레이 닫기
+    $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
+    window._lastRunoutPhase=null;
+    if(!$('sdOv').classList.contains('show')){
+      if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
+      showSD(g);
+    }
   }
   if(g.phase==='foldwin'&&!$('sdOv').classList.contains('show')){
     if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
@@ -556,7 +559,7 @@ function renderMyArea(g){
   const myTurn=g.order[g.curI]===myUID,isFd=me.status==='folded'||me.status==='out';
   // 올인 쇼다운 진행 중이면 버튼 전부 숨기기
   const runoutActive=$('runoutOv').classList.contains('show');
-  if(g.phase==='showdown'||g.phase==='foldwin'||g.phase==='allin_runout'||runoutActive){
+  if(g.phase==='showdown'||g.phase==='foldwin'||(g.phase||'').startsWith('allin_runout')||runoutActive){
     $('atimer').classList.remove('show');
     $('wmsg').classList.remove('show');
     $('actBtns').innerHTML='';
@@ -725,9 +728,9 @@ async function doAct(type,amount){
     const afterAllin=order.filter(u=>players[u].status==='allin');
     const afterNotFolded=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
     if(afterActive.length===0 && afterAllin.length>=1 && afterNotFolded.length>=2){
-      // 올인 쇼다운 → Firebase에 allin_runout 저장 (모든 클라이언트가 런아웃 봄)
-      order.forEach(uid=>{if(players[uid].status==='active')players[uid].bet=0;});
-      await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,curBet,phase:'allin_runout',_prevPot:pot});
+      // 올인 쇼다운 → Firebase에 allin_runout_0 저장 (모든 클라이언트 동기화)
+      order.forEach(uid=>{if(players[uid].status==='active')players[uid].bet=0;if(players[uid].status==='allin')players[uid].bet=0;});
+      await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot:0,curBet:0,phase:'allin_runout_0',_prevPot:pot});
     } else {
       const ns=await advPhase(g,players,pot,curBet,minR);
       await update(ref(db,`rooms/${roomCode}/game`),ns);
@@ -772,154 +775,191 @@ function doSD(g,players,pot){
 }
 
 // ── 드라마틱 올인 런아웃 ──
-async function startDramaticRunout(g, players, pot) {
-  const order = g.order || [];
-  // Firebase에서 오는 players는 객체, values 변환
-  const playersObj = players || g.players || {};
-  const communityRaw = g.community || {};
-  const community = Array.isArray(communityRaw) ? communityRaw : Object.values(communityRaw);
 
-  const notFolded = order.filter(u => {
-    const p = playersObj[u];
-    return p && p.status !== 'folded' && p.status !== 'out';
-  });
+// ── 올인 런아웃: Firebase 단계별 동기화 ──
+// phase: allin_runout_0(카드공개) → allin_runout_3(플랍) → allin_runout_4(턴) → allin_runout_5(리버) → showdown
+
+function handleRunoutPhase(g) {
+  const ph = g.phase || '';
+  if (!ph.startsWith('allin_runout')) return;
+  if (window._lastRunoutPhase === ph) return; // 이미 처리한 단계
+  window._lastRunoutPhase = ph;
 
   const ov = $('runoutOv');
-  ov.innerHTML = '';
-  ov.classList.add('show');
+  const communityRaw = g.community || {};
+  const community = Array.isArray(communityRaw) ? communityRaw : Object.values(communityRaw);
+  const playersObj = g.players || {};
+  const order = g.order || [];
+  const notFolded = order.filter(u => playersObj[u] && playersObj[u].status !== 'folded' && playersObj[u].status !== 'out');
 
-  // ── 제목 ──
-  const title = document.createElement('div');
-  title.className = 'runout-title';
-  title.textContent = '✦ ALL IN ✦';
-  ov.appendChild(title);
+  if (ph === 'allin_runout_0') {
+    // 카드 공개 화면 초기화
+    ov.innerHTML = '';
+    ov.classList.add('show');
 
-  // ── 팟 ──
-  const potAmt = pot || g._prevPot || 0;
-  const potEl = document.createElement('div');
-  potEl.className = 'runout-pot';
-  potEl.textContent = '🪙 POT ' + fmt(potAmt);
-  ov.appendChild(potEl);
+    const title = document.createElement('div');
+    title.className = 'runout-title';
+    title.textContent = '✦ ALL IN ✦';
+    ov.appendChild(title);
 
-  // ── 플레이어 카드 공개 ──
-  const playersWrap = document.createElement('div');
-  playersWrap.className = 'runout-players';
-  notFolded.forEach(uid => {
-    const p = playersObj[uid];
-    if (!p) return;
-    const handArr = p.hand ? (Array.isArray(p.hand) ? p.hand : Object.values(p.hand)) : [];
-    const wrap = document.createElement('div');
-    wrap.className = 'runout-player';
-    const cards = document.createElement('div');
-    cards.className = 'runout-cards';
-    handArr.forEach(c => {
-      if (!c) return;
-      const card = document.createElement('div');
-      card.className = 'runout-card face';
-      card.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
-      card.innerHTML = '<span style="font-size:18px;line-height:1">'+c.r+'</span><span style="font-size:22px;line-height:1">'+c.s+'</span>';
-      cards.appendChild(card);
+    const potAmt = g._prevPot || 0;
+    const potEl = document.createElement('div');
+    potEl.className = 'runout-pot';
+    potEl.textContent = '🪙 POT ' + fmt(potAmt);
+    ov.appendChild(potEl);
+
+    // 플레이어 카드 공개
+    const pw = document.createElement('div');
+    pw.className = 'runout-players';
+    notFolded.forEach(uid => {
+      const p = playersObj[uid];
+      if (!p) return;
+      const handArr = p.hand ? (Array.isArray(p.hand) ? p.hand : Object.values(p.hand)) : [];
+      const wrap = document.createElement('div');
+      wrap.className = 'runout-player';
+      const cards = document.createElement('div');
+      cards.className = 'runout-cards';
+      handArr.forEach(c => {
+        if (!c) return;
+        const card = document.createElement('div');
+        card.className = 'runout-card face';
+        card.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+        card.innerHTML = '<span style="font-size:18px;line-height:1">'+c.r+'</span><span style="font-size:22px;line-height:1">'+c.s+'</span>';
+        cards.appendChild(card);
+      });
+      const nameEl = document.createElement('div');
+      nameEl.className = 'runout-name';
+      nameEl.textContent = p.nick;
+      wrap.appendChild(cards);
+      wrap.appendChild(nameEl);
+      pw.appendChild(wrap);
     });
-    const nameEl = document.createElement('div');
-    nameEl.className = 'runout-name';
-    nameEl.textContent = p.nick;
-    wrap.appendChild(cards);
-    wrap.appendChild(nameEl);
-    playersWrap.appendChild(wrap);
-  });
-  ov.appendChild(playersWrap);
+    ov.appendChild(pw);
 
-  // ── 보드 영역 ──
-  const boardWrap = document.createElement('div');
-  boardWrap.className = 'runout-board';
-  const boardLabel = document.createElement('div');
-  boardLabel.className = 'runout-board-label';
-  boardLabel.textContent = 'BOARD';
-  boardWrap.appendChild(boardLabel);
-  const boardCards = document.createElement('div');
-  boardCards.className = 'runout-board-cards';
-  for (let i = 0; i < 5; i++) {
-    const slot = document.createElement('div');
-    slot.className = 'runout-board-card empty';
-    slot.id = 'rslot_' + i;
-    boardCards.appendChild(slot);
-  }
-  boardWrap.appendChild(boardCards);
-  ov.appendChild(boardWrap);
+    // 보드 슬롯 5개 생성
+    const boardWrap = document.createElement('div');
+    boardWrap.className = 'runout-board';
+    const boardLabel = document.createElement('div');
+    boardLabel.className = 'runout-board-label';
+    boardLabel.textContent = 'BOARD';
+    boardWrap.appendChild(boardLabel);
+    const boardCards = document.createElement('div');
+    boardCards.className = 'runout-board-cards';
+    boardCards.id = 'runoutBoard';
+    for (let i = 0; i < 5; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'runout-board-card empty';
+      slot.id = 'rslot_' + i;
+      boardCards.appendChild(slot);
+    }
+    boardWrap.appendChild(boardCards);
+    ov.appendChild(boardWrap);
 
-  // ── 상태 메시지 ──
-  const statusEl = document.createElement('div');
-  statusEl.className = 'runout-status';
-  ov.appendChild(statusEl);
+    const statusEl = document.createElement('div');
+    statusEl.className = 'runout-status';
+    statusEl.id = 'runoutStatus';
+    ov.appendChild(statusEl);
 
-  const wait = ms => new Promise(res => setTimeout(res, ms));
+    // 방장이 2초 후 플랍 단계로 진행
+    if (isHost) {
+      setTimeout(async () => {
+        await update(ref(db, `rooms/${roomCode}/game`), {phase: 'allin_runout_3', _prevPot: g._prevPot});
+      }, 2000);
+    }
 
-  function fillSlot(i, c, anim) {
-    const slot = ov.querySelector('#rslot_' + i);
-    if (!slot || !c) return;
-    slot.className = 'runout-board-card face';
-    slot.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
-    if (anim) slot.style.animation = 'cardReveal .45s ease';
-    slot.innerHTML = '<span style="font-size:14px;line-height:1">'+c.r+'</span><span style="font-size:18px;line-height:1">'+c.s+'</span>';
-  }
+  } else if (ph === 'allin_runout_3') {
+    // 플랍 3장 표시
+    const statusEl = document.getElementById('runoutStatus');
+    if (statusEl) statusEl.textContent = '◆ FLOP ◆';
+    for (let i = 0; i < 3; i++) {
+      const c = community[i];
+      if (!c) continue;
+      setTimeout(() => {
+        const slot = document.getElementById('rslot_' + i);
+        if (!slot) return;
+        slot.className = 'runout-board-card face';
+        slot.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+        slot.style.animation = 'cardReveal .45s ease';
+        slot.innerHTML = '<span style="font-size:14px;line-height:1">'+c.r+'</span><span style="font-size:18px;line-height:1">'+c.s+'</span>';
+      }, i * 180);
+    }
+    if (isHost) {
+      setTimeout(async () => {
+        await update(ref(db, `rooms/${roomCode}/game`), {phase: 'allin_runout_4', _prevPot: g._prevPot});
+      }, 2200);
+    }
 
-  await wait(1500);
+  } else if (ph === 'allin_runout_4') {
+    // 턴 1장 표시
+    const statusEl = document.getElementById('runoutStatus');
+    if (statusEl) statusEl.textContent = '◆ TURN ◆';
+    const c = community[3];
+    if (c) {
+      const slot = document.getElementById('rslot_3');
+      if (slot) {
+        slot.className = 'runout-board-card face';
+        slot.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+        slot.style.animation = 'cardReveal .45s ease';
+        slot.innerHTML = '<span style="font-size:14px;line-height:1">'+c.r+'</span><span style="font-size:18px;line-height:1">'+c.s+'</span>';
+      }
+    }
+    if (isHost) {
+      setTimeout(async () => {
+        await update(ref(db, `rooms/${roomCode}/game`), {phase: 'allin_runout_5', _prevPot: g._prevPot});
+      }, 2200);
+    }
 
-  // ── 플랍 ──
-  statusEl.textContent = '◆ FLOP ◆';
-  for (let i = 0; i < 3; i++) {
-    fillSlot(i, community[i], true);
-    await wait(180);
-  }
-  await wait(2000);
-
-  // ── 턴 ──
-  statusEl.textContent = '◆ TURN ◆';
-  fillSlot(3, community[3], true);
-  await wait(2000);
-
-  // ── 리버 (3D 뒤집기) ──
-  statusEl.textContent = '◆ RIVER ◆';
-  const riverCard = community[4];
-  if (riverCard) {
-    const oldSlot = ov.querySelector('#rslot_4');
-    if (oldSlot) {
-      const flipWrap = document.createElement('div');
-      flipWrap.className = 'card-flip-wrap';
-      const flipInner = document.createElement('div');
-      flipInner.className = 'card-flip-inner';
-      flipInner.id = 'riverFlip';
-      const flipBack = document.createElement('div');
-      flipBack.className = 'card-flip-back';
-      flipBack.innerHTML = '<span style="font-size:18px;color:rgba(201,168,76,.4)">♠</span>';
-      const flipFront = document.createElement('div');
-      flipFront.className = 'card-flip-front';
-      flipFront.style.color = isRed(riverCard.s) ? '#c0392b' : '#1a1a1a';
-      flipFront.innerHTML = '<span style="font-size:14px;line-height:1">'+riverCard.r+'</span><span style="font-size:18px;line-height:1">'+riverCard.s+'</span>';
-      flipInner.appendChild(flipBack);
-      flipInner.appendChild(flipFront);
-      flipWrap.appendChild(flipInner);
-      oldSlot.replaceWith(flipWrap);
-      await wait(400);
-      flipInner.classList.add('flipped');
-      await wait(1500);
+  } else if (ph === 'allin_runout_5') {
+    // 리버 3D 뒤집기
+    const statusEl = document.getElementById('runoutStatus');
+    if (statusEl) statusEl.textContent = '◆ RIVER ◆';
+    const c = community[4];
+    if (c) {
+      const oldSlot = document.getElementById('rslot_4');
+      if (oldSlot) {
+        const flipWrap = document.createElement('div');
+        flipWrap.className = 'card-flip-wrap';
+        const flipInner = document.createElement('div');
+        flipInner.className = 'card-flip-inner';
+        const flipBack = document.createElement('div');
+        flipBack.className = 'card-flip-back';
+        flipBack.innerHTML = '<span style="font-size:18px;color:rgba(201,168,76,.4)">♠</span>';
+        const flipFront = document.createElement('div');
+        flipFront.className = 'card-flip-front';
+        flipFront.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
+        flipFront.innerHTML = '<span style="font-size:14px;line-height:1">'+c.r+'</span><span style="font-size:18px;line-height:1">'+c.s+'</span>';
+        flipInner.appendChild(flipBack);
+        flipInner.appendChild(flipFront);
+        flipWrap.appendChild(flipInner);
+        oldSlot.replaceWith(flipWrap);
+        setTimeout(() => flipInner.classList.add('flipped'), 400);
+      }
+    }
+    // 리버 후 2초 뒤 결과
+    if (isHost) {
+      setTimeout(async () => {
+        const sn = await get(ref(db, `rooms/${roomCode}/game`));
+        if (!sn.exists()) return;
+        const cg = sn.val();
+        const playersSnap = cg.players || {};
+        const commSnap = cg.community || {};
+        const commArr = Array.isArray(commSnap) ? commSnap : Object.values(commSnap);
+        const potSnap = cg._prevPot || 0;
+        // community를 g에 배열로 넣어서 doSD에 전달
+        const gForSD = {...cg, community: commArr};
+        const finalState = doSD(gForSD, JSON.parse(JSON.stringify(playersSnap)), potSnap);
+        await update(ref(db, `rooms/${roomCode}/game`), finalState);
+      }, 2500);
     }
   }
-
-  await wait(800);
-  statusEl.textContent = '결과 확인 중...';
-  await wait(500);
-
-  ov.classList.remove('show');
-  ov.innerHTML = '';
-  window._runoutStarted = false;
-
-  // 방장만 Firebase showdown 업데이트
-  if (isHost) {
-    const finalState = doSD(g, JSON.parse(JSON.stringify(playersObj)), potAmt);
-    await update(ref(db, `rooms/${roomCode}/game`), finalState);
-  }
 }
+
+// 빈 함수로 대체 (handleRunoutPhase로 통합됨)
+async function startDramaticRunout(g, players, pot) {
+  // 이 함수는 더 이상 직접 호출되지 않음
+  // handleRunoutPhase가 Firebase phase 변경으로 처리
+}
+
 
 function showFoldWin(g){
   const order=g.order;
