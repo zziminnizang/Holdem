@@ -441,8 +441,9 @@ function renderGame(g){
   const lv=Math.min(g.blindLv||0,BL.length-1);const[sb,bb]=BL[lv];
   $('hudB').textContent=`${fmt(sb)}/${fmt(bb)}`;$('hudLv').textContent=`LEVEL ${lv+1}`;$('potV').textContent=fmt(g.pot||0);
   renderComm(g);renderSeats(g);renderMyArea(g);
-  // 새 핸드 시작되면 오버레이 닫기
+  // 새 핸드 시작되면 오버레이 강제 닫기
   if(g.phase!=='showdown'){
+    if(window._sdTimer){clearInterval(window._sdTimer);window._sdTimer=null;}
     $('sdOv').classList.remove('show');
     $('sdOv').innerHTML='';
   }
@@ -568,9 +569,10 @@ async function advPhase(g,players,pot,curBet,minR){
   const active=order.filter(u=>players[u].status==='active');
   // 플랍 이후: BB(btnI 다음)가 먼저, 프리플랍: BB 이후(UTG)가 먼저
   // 포스트플랍 firstI = btn 다음 액티브 플레이어 (OOP부터)
-  const firstI=nextActFrom(order,players,g.btnI%n);
-  // lastRaiserI = firstI의 바로 이전 액티브 플레이어 (한바퀴 돌면 종료)
-  // 즉 firstI가 다시 돌아오면 라운드 끝
+  // 포스트플랍 첫 액션: BTN 다음 플레이어 (OOP = BB 포지션)
+  // 헤즈업: bbI 기준, 멀티: btnI 다음
+  const postFlopFirst = g.order.length===2 ? g.bbI : nextActFrom(g.order,players,g.btnI%n);
+  const firstI = nextActFrom(g.order,players,(postFlopFirst-1+g.order.length)%g.order.length);
   const lastActorI=prevActFrom(order,players,firstI);
   const newState={...g,phase,revealCount:rev,pot,players,curBet:0,minRaise:bb,lastRaiserI:lastActorI,curI:firstI};
   // 모두 올인이면 자동으로 보드 계속 깔기
@@ -633,14 +635,16 @@ function showSD(g){
   countdown.textContent='3초 후 다음 핸드...';
   ov.appendChild(countdown);
 
+  // 기존 타이머 있으면 제거
+  if(window._sdTimer)clearInterval(window._sdTimer);
   let sec=3;
-  const cdTimer=setInterval(()=>{
+  window._sdTimer=setInterval(()=>{
     sec--;
-    countdown.textContent=sec>0?sec+'초 후 다음 핸드...':'다음 핸드 준비 중...';
+    if(countdown)countdown.textContent=sec>0?sec+'초 후 다음 핸드...':'준비 중...';
     if(sec<=0){
-      clearInterval(cdTimer);
+      clearInterval(window._sdTimer);window._sdTimer=null;
       ov.classList.remove('show');
-      // 방장만 Firebase 업데이트 (다음 핸드 시작)
+      ov.innerHTML='';
       if(isHost)nextHand(g);
     }
   },1000);
