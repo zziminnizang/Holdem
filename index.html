@@ -542,6 +542,7 @@ async function doAct(type,amount){
 }
 function nextAct(order,players,curI){for(let i=1;i<order.length;i++){const idx=(curI+i)%order.length;if(players[order[idx]]?.status==='active')return idx;}return curI;}
 function nextActFrom(order,players,fromI){for(let i=1;i<=order.length;i++){const idx=(fromI+i)%order.length;if(players[order[idx]]?.status==='active')return idx;}return fromI;}
+function prevActFrom(order,players,fromI){for(let i=1;i<=order.length;i++){const idx=(fromI-i+order.length)%order.length;if(players[order[idx]]?.status==='active')return idx;}return fromI;}
 async function advPhase(g,players,pot,curBet,minR){
   const order=g.order,n=order.length;
   // 베팅 초기화
@@ -556,8 +557,13 @@ async function advPhase(g,players,pot,curBet,minR){
   else if(phase==='turn'){phase='river';rev=5;}
   else if(phase==='river'){return doSD(g,players,pot);}
   const active=order.filter(u=>players[u].status==='active');
+  // 플랍 이후: BB(btnI 다음)가 먼저, 프리플랍: BB 이후(UTG)가 먼저
+  // 포스트플랍 firstI = btn 다음 액티브 플레이어 (OOP부터)
   const firstI=nextActFrom(order,players,g.btnI%n);
-  const newState={...g,phase,revealCount:rev,pot,players,curBet:0,minRaise:bb,lastRaiserI:firstI,curI:firstI};
+  // lastRaiserI = firstI의 바로 이전 액티브 플레이어 (한바퀴 돌면 종료)
+  // 즉 firstI가 다시 돌아오면 라운드 끝
+  const lastActorI=prevActFrom(order,players,firstI);
+  const newState={...g,phase,revealCount:rev,pot,players,curBet:0,minRaise:bb,lastRaiserI:lastActorI,curI:firstI};
   // 모두 올인이면 자동으로 보드 계속 깔기
   if(active.length===0){return advPhase(newState,players,pot,0,bb);}
   return newState;
@@ -576,8 +582,17 @@ function showSD(g){
   const ov=$('sdOv');ov.innerHTML='';ov.classList.add('show');
   const t=document.createElement('div');t.className='sdt';t.textContent='✦ 쇼다운 ✦';ov.appendChild(t);
   scores.forEach(sc=>{const p=g.players[sc.uid];const win=sc.score.rank===topR;const d=document.createElement('div');d.className=`sdpl${win?' win':''}`;const cs=document.createElement('div');cs.className='sdcs';(p.hand||[]).forEach(c=>{const cd=document.createElement('div');cd.className='sdc';cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';cd.innerHTML=`<span>${c.r}</span><span style="font-size:9px">${c.s}</span>`;cs.appendChild(cd);});const info=document.createElement('div');info.innerHTML=`<div class="sdn">${win?'🏆 ':''}${p.nick}</div><div class="sdh">${sc.score.name}</div><div class="sdw">${fmt(p.chips)}칩 보유</div>`;d.appendChild(cs);d.appendChild(info);ov.appendChild(d);});
-  if(isHost){const btn=document.createElement('button');btn.className='sdnxt';btn.textContent='다음 핸드';btn.addEventListener('click',async()=>{ov.classList.remove('show');await nextHand(g);});ov.appendChild(btn);}
-  else{const msg=document.createElement('div');msg.style.cssText='font-size:11px;color:var(--dm);padding:8px;text-align:center';msg.textContent='방장이 다음 핸드를 시작할 때까지 기다려주세요...';ov.appendChild(msg);}
+  // 3초 후 자동 다음 핸드 (방장만 실행)
+  const countdown=document.createElement('div');
+  countdown.style.cssText='font-size:13px;color:var(--dm);padding:8px;text-align:center;margin-top:4px';
+  countdown.textContent='3초 후 다음 핸드 시작...';
+  ov.appendChild(countdown);
+  let sec=3;
+  const cdTimer=setInterval(()=>{
+    sec--;
+    if(sec>0){countdown.textContent=sec+'초 후 다음 핸드 시작...';}
+    else{clearInterval(cdTimer);ov.classList.remove('show');if(isHost)nextHand(g);}
+  },1000);
 }
 async function nextHand(g){
   if(!isHost)return;const sn=await get(ref(db,`rooms/${roomCode}/game`));if(!sn.exists())return;
@@ -598,7 +613,7 @@ async function doNextHand(g,players){
   const deck=shuffle(mkDeck());let di=0;const oldBI=alive.indexOf(g.order[g.btnI]);const newBI=(oldBI<0?0:oldBI+1)%n;
   const sbI=n===2?newBI:(newBI+1)%n,bbI=n===2?(newBI+1)%n:(newBI+2)%n;const lv=g.blindLv||0;const[sb,bb]=BL[Math.min(lv,BL.length-1)];
   const np={};
-  alive.forEach((uid,i)=>{const op=players[uid];let chips=op.chips,bet=0,pos='',st='active';if(i===newBI&&n>2)pos='btn';if(n===2&&i===newBI){pos='btn/sb';const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}if(i===sbI&&n>2){pos='sb';const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}if(i===bbI){pos='bb';const paid=Math.min(bb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}np[uid]={...op,chips,bet,pos,status:st,lastAction:'',hand:[deck[di++],deck[di++]]};});
+  alive.forEach((uid,i)=>{const op=players[uid];let chips=op.chips,bet=0,pos='',st='active';if(i===newBI&&n>2)pos='btn';if(n===2&&i===newBI){pos='btn/sb';const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}if(i===sbI&&n>2){pos='sb';const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}if(i===bbI){pos='bb';const paid=Math.min(bb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}np[uid]={...op,chips,bet,pos,status:st,lastAction:'',hasActed:false,hand:[deck[di++],deck[di++]]};});
   const community=[deck[di++],deck[di++],deck[di++],deck[di++],deck[di++]];
   const pot=(np[alive[n===2?newBI:sbI]]?.bet||0)+(np[alive[bbI]]?.bet||0);
   const ns={phase:'preflop',community,revealCount:0,pot,players:np,order:alive,btnI:newBI,sbI,bbI,curI:(bbI+1)%n,curBet:bb,lastRaiserI:bbI,blindLv:lv,blindTs:g.blindTs,handNum:(g.handNum||1)+1,minRaise:bb};
