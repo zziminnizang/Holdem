@@ -496,7 +496,7 @@ function renderGame(g){
   }
   renderComm(g);renderSeats(g);renderMyArea(g);
   // 새 핸드 시작되면 오버레이 강제 닫기
-  if(g.phase!=='showdown'){
+  if(g.phase!=='showdown'&&g.phase!=='foldwin'){
     if(window._sdTimer){clearInterval(window._sdTimer);window._sdTimer=null;}
     $('sdOv').classList.remove('show');
     $('sdOv').innerHTML='';
@@ -504,9 +504,12 @@ function renderGame(g){
     $('runoutOv').innerHTML='';
   }
   if(g.phase==='showdown'&&!$('sdOv').classList.contains('show')&&!$('runoutOv').classList.contains('show')){
-    // pot이 0으로 초기화되기 전 값 보존
     if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
     showSD(g);
+  }
+  if(g.phase==='foldwin'&&!$('sdOv').classList.contains('show')){
+    if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
+    showFoldWin(g);
   }
 }
 function renderComm(g){
@@ -546,7 +549,7 @@ function renderMyArea(g){
   const myTurn=g.order[g.curI]===myUID,isFd=me.status==='folded'||me.status==='out';
   // 올인 쇼다운 진행 중이면 버튼 전부 숨기기
   const runoutActive=$('runoutOv').classList.contains('show');
-  if(g.phase==='showdown'||runoutActive){
+  if(g.phase==='showdown'||g.phase==='foldwin'||runoutActive){
     $('atimer').classList.remove('show');
     $('wmsg').classList.remove('show');
     $('actBtns').innerHTML='';
@@ -695,7 +698,7 @@ async function doAct(type,amount){
     order.forEach(u=>{if(u!==myUID&&players[u].status==='active')players[u].hasActed=false;});}
     pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';}
   const notFd=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
-  if(notFd.length===1){players[notFd[0]].chips+=pot;const prevP=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,_prevPot:prevP,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'showdown',revealCount:5});return;}
+  if(notFd.length===1){players[notFd[0]].chips+=pot;const prevP=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,_prevPot:prevP,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'foldwin',revealCount:g.revealCount||0});return;}
   const nextI=nextAct(order,players,g.curI);
   const active=order.filter(u=>players[u].status==='active');
   // 베팅 라운드 종료 조건
@@ -914,6 +917,63 @@ async function startDramaticRunout(g, players, pot) {
   // 최종 showdown 상태로 업데이트
   const finalState = doSD(g, players, pot);
   await update(ref(db, `rooms/${roomCode}/game`), finalState);
+}
+
+
+// ── 폴드 승리 (카드 공개 없이 승자만 표시) ──
+function showFoldWin(g){
+  const order=g.order;
+  const winner=order.find(u=>g.players[u].status!=='folded'&&g.players[u].status!=='out');
+  if(!winner)return;
+  const wp=g.players[winner];
+  const pot=g._prevPot||0;
+
+  const ov=$('sdOv');ov.innerHTML='';ov.classList.add('show');
+
+  // 승자 표시
+  const title=document.createElement('div');
+  title.className='sdt';
+  title.textContent='✦ 게임 종료 ✦';
+  ov.appendChild(title);
+
+  // 팟 획득 표시
+  const potRow=document.createElement('div');
+  potRow.style.cssText='font-size:14px;color:var(--gl);text-align:center;margin:4px 0 8px;font-family:"DM Mono",monospace;';
+  potRow.textContent='🏆 '+wp.nick+' → +'+fmt(pot)+'칩';
+  ov.appendChild(potRow);
+
+  // 승자 칩 보유량
+  const chipRow=document.createElement('div');
+  chipRow.style.cssText='font-size:11px;color:var(--dm);text-align:center;margin-bottom:10px;';
+  chipRow.textContent='보유 칩: '+fmt(wp.chips);
+  ov.appendChild(chipRow);
+
+  // 상대방 폴드 표시 (카드는 숨김)
+  order.filter(u=>g.players[u].status==='folded').forEach(u=>{
+    const p=g.players[u];
+    const row=document.createElement('div');
+    row.style.cssText='font-size:11px;color:var(--dm);text-align:center;margin-bottom:4px;';
+    row.textContent=p.nick+' 폴드';
+    ov.appendChild(row);
+  });
+
+  // 3초 카운트다운
+  const countdown=document.createElement('div');
+  countdown.style.cssText='font-size:12px;color:var(--dm);padding:10px;text-align:center;margin-top:6px;';
+  countdown.textContent='3초 후 다음 핸드...';
+  ov.appendChild(countdown);
+
+  if(window._sdTimer)clearInterval(window._sdTimer);
+  let sec=3;
+  window._sdTimer=setInterval(()=>{
+    sec--;
+    if(countdown)countdown.textContent=sec>0?sec+'초 후 다음 핸드...':'준비 중...';
+    if(sec<=0){
+      clearInterval(window._sdTimer);window._sdTimer=null;
+      ov.classList.remove('show');ov.innerHTML='';
+      if(isHost)nextHand(g);
+    }
+  },1000);
 }
 
 function showSD(g){
