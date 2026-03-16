@@ -24,7 +24,7 @@ body{min-height:100%;background:var(--bg);color:var(--tx);font-family:'Noto Sans
 .panel{width:100%;max-width:360px;background:linear-gradient(160deg,var(–s1),var(–s2));border:1px solid rgba(201,168,76,.18);border-radius:16px;padding:22px 18px;box-shadow:0 20px 55px rgba(0,0,0,.7);}
 .ptitle{font-family:‘Cinzel Decorative’,serif;font-size:11px;color:var(–g);text-align:center;letter-spacing:2px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(201,168,76,.1);}
 .flbl{font-size:10px;color:var(–dm);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:6px;}
-.finput{display:block;width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(201,168,76,.2);border-radius:10px;padding:14px;color:var(–tx);font-family:‘Noto Sans KR’,sans-serif;font-size:16px;outline:none;-webkit-appearance:none;appearance:none;}
+.finput{display:block;width:100%;background:rgba(0,0,0,.4);border:1px solid rgba(201,168,76,.2);border-radius:10px;padding:14px;color:#f0e6c8;font-family:‘Noto Sans KR’,sans-serif;font-size:16px;outline:none;-webkit-appearance:none;appearance:none;-webkit-text-fill-color:#f0e6c8;}
 .finput:focus{border-color:var(–g);}
 .finput::placeholder{color:rgba(138,122,90,.4);}
 .ferr{font-size:11px;color:var(–rl);margin-top:5px;min-height:14px;}
@@ -526,23 +526,83 @@ function renderMyArea(g){
 }
 function renderActBtns(g,me){
   const cb=$('actBtns');cb.innerHTML='';
+  const order=g.order,players=g.players;
   const curBet=g.curBet||0,myBet=me.bet||0,myChips=me.chips||0,toCall=curBet-myBet;
   const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];const minR=g.minRaise||bb;
   function ab(lbl,cls,fn){const b=document.createElement('button');b.className=`ab ${cls}`;b.textContent=lbl;b.addEventListener('click',fn);cb.appendChild(b);}
+
   if(myChips<=0){ab('올인','ab-al',()=>doAct('allin',myBet));return;}
-  if(toCall<=0){ab('체크','ab-ch',()=>doAct('check',0));if(myChips>=bb)ab('레이즈','ab-ra',()=>openRaise(g,me));ab('올인','ab-al',()=>doAct('allin',myBet+myChips));}
-  else{ab('폴드','ab-fo',()=>doAct('fold',0));if(myChips<=toCall)ab('올인','ab-al',()=>doAct('allin',myBet+myChips));else{ab('콜','ab-ca',()=>doAct('call',curBet));if(myChips>toCall+minR)ab('레이즈','ab-ra',()=>openRaise(g,me));ab('올인','ab-al',()=>doAct('allin',myBet+myChips));}}
+
+  if(toCall<=0){
+    ab('체크','ab-ch',()=>doAct('check',0));
+    if(myChips>=bb)ab('레이즈','ab-ra',()=>openRaise(g,me));
+    ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+  } else {
+    // 앞에 올인이 있는지 확인
+    const myIdx=order.indexOf(me.uid);
+    const isAllinSit=order.some(u=>players[u]&&players[u].status==='allin'&&(players[u].bet||0)>=curBet);
+    // 뒤에 아직 액션할 액티브 플레이어가 있는지
+    const lastRI=g.lastRaiserI??myIdx;
+    let hasAfter=false;
+    for(let i=1;i<order.length;i++){
+      const idx2=(myIdx+i)%order.length;
+      if(idx2===lastRI)break;
+      if(players[order[idx2]]?.status==='active')hasAfter=true;
+    }
+
+    if(isAllinSit){
+      if(myChips<=toCall){
+        // 스택이 콜금액보다 적거나 같음 → 폴드 or 올인
+        ab('폴드','ab-fo',()=>doAct('fold',0));
+        ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+      } else {
+        // 스택이 더 많음
+        if(hasAfter){
+          // 뒤에 플레이어 있음 → 폴드, 콜, 올인
+          ab('폴드','ab-fo',()=>doAct('fold',0));
+          ab('콜','ab-ca',()=>doAct('call',curBet));
+          ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+        } else {
+          // 헤즈업 or 뒤에 없음 → 폴드, 콜만
+          ab('폴드','ab-fo',()=>doAct('fold',0));
+          ab('콜','ab-ca',()=>doAct('call',curBet));
+        }
+      }
+    } else {
+      // 일반 베팅
+      ab('폴드','ab-fo',()=>doAct('fold',0));
+      if(myChips<=toCall){
+        ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+      } else {
+        ab('콜','ab-ca',()=>doAct('call',curBet));
+        if(myChips>toCall+minR)ab('레이즈','ab-ra',()=>openRaise(g,me));
+        ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+      }
+    }
+  }
   startActTimer(g);
 }
 function openRaise(g,me){
   const curBet=g.curBet||0,myBet=me.bet||0,myChips=me.chips||0;
   const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];const minR=g.minRaise||bb;
   const minT=curBet+minR,maxT=myBet+myChips;
-  const sl=$('rsl');sl.min=minT;sl.max=maxT;sl.value=minT;raiseV=minT;
+  const sl=$('rsl');sl.min=minT;sl.max=maxT;sl.step=100;
+  // 최솟값을 100 단위로 올림
+  const stepMin=Math.ceil(minT/100)*100;
+  sl.value=stepMin;raiseV=stepMin;
   $('ramt').textContent=fmt(raiseV);$('rpanel').classList.add('show');
-  const upd=()=>{raiseV=+sl.value;$('ramt').textContent=fmt(raiseV);const p=((raiseV-minT)/(maxT-minT||1))*100;sl.style.background=`linear-gradient(to right,var(--g) 0%,var(--g) ${p}%,rgba(255,255,255,.08) ${p}%)`;};
+  const upd=()=>{
+    let v=Math.round(+sl.value/100)*100;
+    const stepMin=Math.ceil(minT/100)*100;
+    const stepMax=Math.floor(maxT/100)*100;
+    v=Math.max(stepMin,Math.min(stepMax,v));
+    raiseV=v;sl.value=v;
+    $('ramt').textContent=fmt(raiseV);
+    const p=((raiseV-minT)/(maxT-minT||1))*100;
+    sl.style.background=`linear-gradient(to right,var(--g) 0%,var(--g) ${p}%,rgba(255,255,255,.08) ${p}%)`;
+  };
   sl.oninput=upd;upd();
-  document.querySelectorAll('.rpbtn').forEach(b=>{b.onclick=()=>{const p=+b.dataset.p/100;let v=Math.round(curBet+(g.pot||0)*p);v=Math.max(minT,Math.min(maxT,v));sl.value=v;raiseV=v;upd();};});
+  document.querySelectorAll('.rpbtn').forEach(b=>{b.onclick=()=>{const p=+b.dataset.p/100;let v=Math.round(curBet+(g.pot||0)*p);v=Math.round(v/100)*100;v=Math.max(Math.ceil(minT/100)*100,Math.min(Math.floor(maxT/100)*100,v));sl.value=v;raiseV=v;upd();};});
   $('rcf').onclick=()=>{$('rpanel').classList.remove('show');doAct('raise',raiseV);};
 }
 function startActTimer(g){
@@ -561,7 +621,11 @@ async function doAct(type,amount){
   p.hasActed=true;
   if(type==='fold'){p.status='folded';p.lastAction='fold';}
   else if(type==='check'){p.lastAction='check';}
-  else if(type==='call'){const tc=Math.min(curBet-p.bet,p.chips);pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';if(p.chips<=0)p.status='allin';}
+  else if(type==='call'){
+    const tc=Math.min(curBet-p.bet,p.chips);
+    pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';
+    if(p.chips<=0)p.status='allin';
+  }
   else if(type==='raise'){const diff=amount-(p.bet||0),actual=Math.min(diff,p.chips);minR=amount-curBet;curBet=amount;pot+=actual;p.chips-=actual;p.bet=amount;p.lastAction='raise';lastRI=order.indexOf(myUID);if(p.chips<=0)p.status='allin';
     // 레이즈 시 다른 액티브 플레이어들은 다시 액션해야 함
     order.forEach(u=>{if(u!==myUID&&players[u].status==='active')players[u].hasActed=false;});}
@@ -575,11 +639,15 @@ async function doAct(type,amount){
   const active=order.filter(u=>players[u].status==='active');
   // 베팅 라운드 종료 조건
   const allMatched = active.length===0 || active.every(u=>(players[u].bet||0)>=curBet);
-  // 모든 액티브 플레이어가 이번 스트리트에서 최소 1번 액션했는지 확인
   const allActed = active.length===0 || active.every(u=>players[u].hasActed===true);
-  // 액티브가 1명 이하고 나머지 모두 올인/폴드면 자동 진행
   const onlyOneCanAct = active.length<=1 && order.filter(u=>players[u].status==='allin').length>0;
-  const done = (allMatched && allActed) || (onlyOneCanAct && allMatched);
+  // 콜 후 모두 올인/폴드 상태가 됐는지 체크 (즉시 런아웃)
+  const activeAfter = order.filter(u=>players[u].status==='active');
+  const allinAfter = order.filter(u=>players[u].status==='allin');
+  const notFoldedAfter = order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
+  // 2명 이상 팟 참여, 모두 베팅 맞춤, 액티브가 0이거나 액티브가 전부 allMatched → 런아웃
+  const isAllInShowdown = notFoldedAfter.length>=2 && allinAfter.length>0 && activeAfter.every(u=>(players[u].bet||0)>=curBet) && allActed;
+  const done = (allMatched && allActed) || (onlyOneCanAct && allMatched) || isAllInShowdown;
   if(done){
     const ns=await advPhase(g,players,pot,curBet,minR);
     await update(ref(db,`rooms/${roomCode}/game`),ns);
