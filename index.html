@@ -519,8 +519,13 @@ async function doAct(type,amount){
   if(type==='fold'){p.status='folded';p.lastAction='fold';}
   else if(type==='check'){p.lastAction='check';}
   else if(type==='call'){const tc=Math.min(curBet-p.bet,p.chips);pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';if(p.chips<=0)p.status='allin';}
-  else if(type==='raise'){const diff=amount-(p.bet||0),actual=Math.min(diff,p.chips);minR=amount-curBet;curBet=amount;pot+=actual;p.chips-=actual;p.bet=amount;p.lastAction='raise';lastRI=order.indexOf(myUID);if(p.chips<=0)p.status='allin';}
-  else if(type==='allin'){const total=p.chips+(p.bet||0);if(total>curBet){curBet=total;lastRI=order.indexOf(myUID);minR=p.chips;}pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';}
+  else if(type==='raise'){const diff=amount-(p.bet||0),actual=Math.min(diff,p.chips);minR=amount-curBet;curBet=amount;pot+=actual;p.chips-=actual;p.bet=amount;p.lastAction='raise';lastRI=order.indexOf(myUID);if(p.chips<=0)p.status='allin';
+    // 레이즈 시 다른 액티브 플레이어들은 다시 액션해야 함
+    order.forEach(u=>{if(u!==myUID&&players[u].status==='active')players[u].hasActed=false;});}
+  else if(type==='allin'){const total=p.chips+(p.bet||0);if(total>curBet){curBet=total;lastRI=order.indexOf(myUID);minR=p.chips;
+    // 올인이 레이즈가 되면 다른 액티브 플레이어들 hasActed 리셋
+    order.forEach(u=>{if(u!==myUID&&players[u].status==='active')players[u].hasActed=false;});}
+    pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';}
   const notFd=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
   if(notFd.length===1){players[notFd[0]].chips+=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'showdown',revealCount:5});return;}
   const nextI=nextAct(order,players,g.curI);
@@ -528,19 +533,34 @@ async function doAct(type,amount){
   // 베팅 라운드 종료 조건
   const allMatched = active.length===0 || active.every(u=>(players[u].bet||0)>=curBet);
   // 모든 액티브 플레이어가 이번 스트리트에서 최소 1번 액션했는지 확인
-  const allActed = active.every(u=>players[u].hasActed===true);
-  const done = allMatched && allActed;
+  const allActed = active.length===0 || active.every(u=>players[u].hasActed===true);
+  // 액티브가 1명 이하고 나머지 모두 올인/폴드면 자동 진행
+  const onlyOneCanAct = active.length<=1 && order.filter(u=>players[u].status==='allin').length>0;
+  const done = (allMatched && allActed) || (onlyOneCanAct && allMatched);
   if(done){const ns=await advPhase(g,players,pot,curBet,minR);await update(ref(db,`rooms/${roomCode}/game`),ns);}
   else await update(ref(db,`rooms/${roomCode}/game`),{players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,curI:nextI});
 }
 function nextAct(order,players,curI){for(let i=1;i<order.length;i++){const idx=(curI+i)%order.length;if(players[order[idx]]?.status==='active')return idx;}return curI;}
 function nextActFrom(order,players,fromI){for(let i=1;i<=order.length;i++){const idx=(fromI+i)%order.length;if(players[order[idx]]?.status==='active')return idx;}return fromI;}
 async function advPhase(g,players,pot,curBet,minR){
-  const order=g.order,n=order.length;order.forEach(uid=>{if(players[uid].status==='active')players[uid].bet=0;});
-  const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];let phase=g.phase,rev=g.revealCount||0;
-  if(phase==='preflop'){phase='flop';rev=3;}else if(phase==='flop'){phase='turn';rev=4;}else if(phase==='turn'){phase='river';rev=5;}else if(phase==='river'){return doSD(g,players,pot);}
+  const order=g.order,n=order.length;
+  // 베팅 초기화
+  order.forEach(uid=>{
+    if(players[uid].status==='active'){players[uid].bet=0;players[uid].hasActed=false;}
+    if(players[uid].status==='allin'){players[uid].bet=0;}
+  });
+  const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];
+  let phase=g.phase,rev=g.revealCount||0;
+  if(phase==='preflop'){phase='flop';rev=3;}
+  else if(phase==='flop'){phase='turn';rev=4;}
+  else if(phase==='turn'){phase='river';rev=5;}
+  else if(phase==='river'){return doSD(g,players,pot);}
+  const active=order.filter(u=>players[u].status==='active');
   const firstI=nextActFrom(order,players,g.btnI%n);
-  return{...g,phase,revealCount:rev,pot,players,curBet:0,minRaise:bb,lastRaiserI:firstI,curI:firstI};
+  const newState={...g,phase,revealCount:rev,pot,players,curBet:0,minRaise:bb,lastRaiserI:firstI,curI:firstI};
+  // 모두 올인이면 자동으로 보드 계속 깔기
+  if(active.length===0){return advPhase(newState,players,pot,0,bb);}
+  return newState;
 }
 function doSD(g,players,pot){
   const order=g.order;const nf=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
