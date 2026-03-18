@@ -680,14 +680,8 @@ function renderGame(g){
   // 올인 런아웃 단계별 처리
   handleRunoutPhase(g);
   // 일반 쇼다운
-  if(g.phase==='river_showdown_wait'){
-    // 리버 후 대기 중 - 버튼만 숨기고 테이블은 그대로
-    $('actBtns').innerHTML='';
-    $('rpanel').classList.remove('show');
-    $('atimer').classList.remove('show');
-    $('wmsg').classList.remove('show');
-  }
   if(g.phase==='showdown'){
+    // 런아웃 오버레이 닫기
     $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
     window._lastRunoutPhase=null;
     if(!$('sdOv').classList.contains('show')){
@@ -740,7 +734,7 @@ function renderMyArea(g){
   const myTurn=g.order[g.curI]===myUID,isFd=me.status==='folded'||me.status==='out';
   // 올인 쇼다운 진행 중이면 버튼 전부 숨기기
   const runoutActive=$('runoutOv').classList.contains('show');
-  if(g.phase==='showdown'||g.phase==='foldwin'||g.phase==='river_showdown_wait'||(g.phase||'').startsWith('allin_runout')||runoutActive){
+  if(g.phase==='showdown'||g.phase==='foldwin'||(g.phase||'').startsWith('allin_runout')||runoutActive){
     $('atimer').classList.remove('show');
     $('wmsg').classList.remove('show');
     $('actBtns').innerHTML='';
@@ -932,15 +926,7 @@ async function doAct(type,amount){
     // 모든 플레이어가 올인/폴드인지 확인
     // 일반 스트리트 진행
     const ns=await advPhase(g,players,pot,curBet,minR);
-    if(ns.phase==='showdown'){
-      // 리버 후 마지막 액션 → 효과음 끝나는 시점 + 2초 후 쇼다운
-      await update(ref(db,`rooms/${roomCode}/game`),{...ns,phase:'river_showdown_wait',_prevPot:ns._prevPot||pot});
-      setTimeout(async()=>{
-        await update(ref(db,`rooms/${roomCode}/game`),{...ns,phase:'showdown'});
-      }, 2500);
-    } else {
-      await update(ref(db,`rooms/${roomCode}/game`),ns);
-    }
+    await update(ref(db,`rooms/${roomCode}/game`),ns);
   }
   else await update(ref(db,`rooms/${roomCode}/game`),{players,pot,curBet,minRaise:minR,lastRaiserI:lastRI,curI:nextI});
 }
