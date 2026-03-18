@@ -433,7 +433,6 @@ const DEALER = {
   },
 
   check()  { this.speak('Check',  0.88, 1.2); },
-  call()   { this.speak('Call',   0.88, 1.2); },
   raise()  { this.speak('Raise',  0.85, 1.15); },
   allin()  { this.speak('All in', 0.80, 1.1); },
 };
@@ -677,7 +676,6 @@ function renderGame(g){
     window._lastRunoutPhase=null;
     $('sdOv').classList.remove('show');$('sdOv').innerHTML='';
     $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
-    // WIN 뱃지 자동 제거 (renderSeats가 새로 그려지므로 자동)
   }
   // 올인 런아웃 단계별 처리
   handleRunoutPhase(g);
@@ -696,13 +694,6 @@ function renderGame(g){
       if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
       showSD(g);
     }
-  }
-  // 카드 공개 + WIN 표시 (오버레이 없이 테이블에서 바로)
-  if(g.phase==='showdown_reveal'){
-    $('sdOv').classList.remove('show');$('sdOv').innerHTML='';
-    $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
-    // renderSeats가 showdown_reveal도 카드 공개하도록 처리됨
-    // WIN 뱃지는 renderSeats에서 처리
   }
   if(g.phase==='foldwin'&&!$('sdOv').classList.contains('show')){
     if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
@@ -726,20 +717,12 @@ function renderSeats(g){
     const isMe=uid===myUID,isAct=order[g.curI]===uid,isFd=p.status==='folded',isOut=p.status==='out';
     const sc=document.createElement('div');sc.className='sc';
     const pHand=p.hand?Object.values(p.hand):[];
-    const revealCards=g.phase==='showdown'||g.phase==='showdown_reveal'||g.phase==='allin_runout_0'||(g.phase||'').startsWith('allin_runout');
-    if(pHand.length>0&&!isOut){const show=isMe||revealCards;[0,1].forEach(ci=>{const cd=document.createElement('div');const c=pHand[ci];if(show&&c&&!isFd){cd.className='card fc';cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';cd.textContent=c.r==='10'?'T':c.r[0];}else if(!isFd)cd.className='card bk';else{cd.className='card bk fd';}sc.appendChild(cd);});}
+    if(pHand.length>0&&!isOut){const show=isMe||(g.phase==='showdown');[0,1].forEach(ci=>{const cd=document.createElement('div');const c=pHand[ci];if(show&&c&&!isFd){cd.className='card fc';cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';cd.textContent=c.r==='10'?'T':c.r[0];}else if(!isFd)cd.className='card bk';else{cd.className='card bk fd';}sc.appendChild(cd);});}
     seat.appendChild(sc);
     const nb=document.createElement('div');nb.className=`sbox${isAct&&!isFd&&!isOut?' act':''}${isFd?' fld':''}${isOut?' out':''}`;
     let pb='';if(p.pos==='btn')pb='<span class="pb">BTN</span> ';else if(p.pos==='sb')pb='<span class="psb">SB</span> ';else if(p.pos==='bb')pb='<span class="pbb">BB</span> ';else if(p.pos==='btn/sb')pb='<span class="pb">BTN</span><span class="psb">SB</span> ';
     nb.innerHTML=`<div style="display:flex;align-items:center;gap:2px;justify-content:center">${pb}<span class="snn" style="color:${isMe?'var(--gl)':'var(--tx)'}">${p.nick}</span></div><div class="sch">${fmt(p.chips)}</div>${p.rebuys>0?`<div class="srb">리바인:${p.rebuys}</div>`:''}`;
     if(isAct&&!isFd&&!isOut){const tw=document.createElement('div');tw.className='tbar-w';const tb=document.createElement('div');tb.className='tbar';tb.id='tb_'+uid;tb.style.width='100%';tw.appendChild(tb);nb.appendChild(tw);}
-    // WIN 뱃지
-    if(g.phase==='showdown_reveal'&&g._winners&&g._winners.includes(uid)&&!isOut&&!isFd){
-      const win=document.createElement('div');
-      win.style.cssText='position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#c9a84c,#e8c96a);color:#1a0f00;font-family:"Cinzel Decorative",serif;font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:1px;white-space:nowrap;box-shadow:0 0 12px rgba(201,168,76,.7);animation:pls 1s ease-in-out infinite;';
-      win.textContent='WIN';
-      seat.appendChild(win);
-    }
     seat.appendChild(nb);
     if(p.bet>0){const be=document.createElement('div');be.className='sbet';be.textContent=fmt(p.bet);seat.appendChild(be);}
     if(p.lastAction){const cmap={fold:'a-fo',check:'a-ch',call:'a-ca',raise:'a-ra',allin:'a-al'};const lmap={fold:'폴드',check:'체크',call:'콜',raise:'레이즈',allin:'올인'};if(cmap[p.lastAction]){const ae=document.createElement('div');ae.className=`sact ${cmap[p.lastAction]}`;ae.textContent=lmap[p.lastAction];seat.appendChild(ae);}}
@@ -757,7 +740,7 @@ function renderMyArea(g){
   const myTurn=g.order[g.curI]===myUID,isFd=me.status==='folded'||me.status==='out';
   // 올인 쇼다운 진행 중이면 버튼 전부 숨기기
   const runoutActive=$('runoutOv').classList.contains('show');
-  if(g.phase==='showdown'||g.phase==='showdown_reveal'||g.phase==='foldwin'||g.phase==='river_showdown_wait'||(g.phase||'').startsWith('allin_runout')||runoutActive){
+  if(g.phase==='showdown'||g.phase==='foldwin'||g.phase==='river_showdown_wait'||(g.phase||'').startsWith('allin_runout')||runoutActive){
     $('atimer').classList.remove('show');
     $('wmsg').classList.remove('show');
     $('actBtns').innerHTML='';
@@ -897,7 +880,6 @@ async function doAct(type,amount){
     const tc=Math.min(curBet-p.bet,p.chips);
     pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';
     if(p.chips<=0)p.status='allin';
-    DEALER.call();
   }
   else if(type==='raise'){const diff=amount-(p.bet||0),actual=Math.min(diff,p.chips);minR=amount-curBet;curBet=amount;pot+=actual;p.chips-=actual;p.bet=amount;p.lastAction='raise';lastRI=order.indexOf(myUID);if(p.chips<=0)p.status='allin';
     // 레이즈 시 다른 액티브 플레이어들은 다시 액션해야 함
@@ -1187,15 +1169,174 @@ async function startDramaticRunout(g, players, pot) {
 
 function showFoldWin(g){
   const order=g.order;
-  const winner=order.find(u=>g.players[u]&&g.players[u].status!=='folded'&&g.players[u].status!=='out');
+  const winner=order.find(u=>g.players[u].status!=='folded'&&g.players[u].status!=='out');
   if(!winner)return;
+  const wp=g.players[winner];
   const pot=g._prevPot||0;
-  if(isHost){
-    update(ref(db,`rooms/${roomCode}/game`),{
-      phase:'showdown_reveal',
-      _winners:[winner],
-      _prevPot:pot
-    });
-    setTimeout(()=>{ if(isHost)nextHand(g); }, 3000);
-  }
+
+  const ov=$('sdOv');ov.innerHTML='';ov.classList.add('show');
+
+  // 승자 표시
+  const title=document.createElement('div');
+  title.className='sdt';
+  title.textContent='✦ 게임 종료 ✦';
+  ov.appendChild(title);
+
+  // 팟 획득 표시
+  const potRow=document.createElement('div');
+  potRow.style.cssText='font-size:14px;color:var(--gl);text-align:center;margin:4px 0 8px;font-family:"DM Mono",monospace;';
+  potRow.textContent='🏆 '+wp.nick+' → +'+fmt(pot)+'칩';
+  ov.appendChild(potRow);
+
+  // 승자 칩 보유량
+  const chipRow=document.createElement('div');
+  chipRow.style.cssText='font-size:11px;color:var(--dm);text-align:center;margin-bottom:10px;';
+  chipRow.textContent='보유 칩: '+fmt(wp.chips);
+  ov.appendChild(chipRow);
+
+  // 상대방 폴드 표시 (카드는 숨김)
+  order.filter(u=>g.players[u].status==='folded').forEach(u=>{
+    const p=g.players[u];
+    const row=document.createElement('div');
+    row.style.cssText='font-size:11px;color:var(--dm);text-align:center;margin-bottom:4px;';
+    row.textContent=p.nick+' 폴드';
+    ov.appendChild(row);
+  });
+
+  // 3초 카운트다운
+  const countdown=document.createElement('div');
+  countdown.style.cssText='font-size:12px;color:var(--dm);padding:10px;text-align:center;margin-top:6px;';
+  countdown.textContent='3초 후 다음 핸드...';
+  ov.appendChild(countdown);
+
+  if(window._sdTimer)clearInterval(window._sdTimer);
+  let sec=3;
+  window._sdTimer=setInterval(()=>{
+    sec--;
+    if(countdown)countdown.textContent=sec>0?sec+'초 후 다음 핸드...':'준비 중...';
+    if(sec<=0){
+      clearInterval(window._sdTimer);window._sdTimer=null;
+      ov.classList.remove('show');ov.innerHTML='';
+      if(isHost)nextHand(g);
+    }
+  },1000);
 }
+
+function showSD(g){
+  const order=g.order;
+  const nf=order.filter(u=>g.players[u].status!=='folded'&&g.players[u].status!=='out');
+
+  // 1명만 남은 경우 = 폴드 승리 → 카드 공개 없이 처리
+  if(nf.length===1){
+    showFoldWin(g);
+    return;
+  }
+
+  const scores=nf.map(uid=>{
+    const p=g.players[uid];
+    return{uid,score:evalBest5([...Object.values(p.hand||{}),...Object.values(g.community||{})]),nick:p.nick,chips:p.chips};
+  });
+  scores.sort((a,b)=>b.score.rank-a.score.rank);
+  const topR=scores[0]?.score.rank;
+  const winners=scores.filter(s=>s.score.rank===topR);
+
+  const ov=$('sdOv');ov.innerHTML='';ov.classList.add('show');
+
+  const t=document.createElement('div');t.className='sdt';t.textContent='✦ 쇼다운 ✦';ov.appendChild(t);
+
+  const totalPot=g._prevPot||0;
+  if(winners.length>0&&totalPot>0){
+    const pw=document.createElement('div');
+    pw.style.cssText='font-size:12px;color:var(--gl);text-align:center;margin-bottom:6px;font-family:"DM Mono",monospace;';
+    const wNames=winners.map(w=>w.nick).join(', ');
+    pw.textContent=wNames+' → +'+fmt(Math.floor(totalPot/winners.length))+'칩';
+    ov.appendChild(pw);
+  }
+
+  scores.forEach(sc=>{
+    const p=g.players[sc.uid];const win=sc.score.rank===topR;
+    const d=document.createElement('div');d.className='sdpl'+(win?' win':'');
+    const cs=document.createElement('div');cs.className='sdcs';
+    Object.values(p.hand||{}).forEach(c=>{
+      const cd=document.createElement('div');cd.className='sdc';
+      cd.style.color=isRed(c.s)?'#c0392b':'#1a1a1a';
+      cd.innerHTML='<span>'+c.r+'</span><span style="font-size:9px">'+c.s+'</span>';
+      cs.appendChild(cd);
+    });
+    const info=document.createElement('div');
+    info.innerHTML='<div class="sdn">'+(win?'🏆 ':'')+p.nick+'</div><div class="sdh">'+sc.score.name+'</div><div class="sdw">'+fmt(p.chips)+'칩 보유</div>';
+    d.appendChild(cs);d.appendChild(info);ov.appendChild(d);
+  });
+
+  const countdown=document.createElement('div');
+  countdown.style.cssText='font-size:13px;color:var(--dm);padding:8px;text-align:center;margin-top:4px';
+  countdown.textContent='3초 후 다음 핸드...';
+  ov.appendChild(countdown);
+
+  if(window._sdTimer)clearInterval(window._sdTimer);
+  let sec=3;
+  window._sdTimer=setInterval(()=>{
+    sec--;
+    if(countdown)countdown.textContent=sec>0?sec+'초 후 다음 핸드...':'준비 중...';
+    if(sec<=0){
+      clearInterval(window._sdTimer);window._sdTimer=null;
+      ov.classList.remove('show');ov.innerHTML='';
+      if(isHost)nextHand(g);
+    }
+  },1000);
+}
+async function nextHand(g){
+  if(!isHost)return;const sn=await get(ref(db,`rooms/${roomCode}/game`));if(!sn.exists())return;
+  const cg=sn.val();const players=JSON.parse(JSON.stringify(cg.players));const order=cg.order;
+  const lv=cg.blindLv||0,canRebuy=lv<10;let myDead=false;
+  order.forEach(uid=>{if(players[uid].chips<=0&&players[uid].status!=='out'){if(uid===myUID)myDead=true;else players[uid].status='out';}});
+  const alive=order.filter(u=>players[u].status!=='out'&&players[u].chips>0);
+  if(alive.length<=1){await endGame(cg,players);return;}
+  if(myDead&&(players[myUID]?.chips||0)<=0){showRebuy(canRebuy,async doR=>{if(doR){players[myUID].chips=IC;players[myUID].rebuys=(players[myUID].rebuys||0)+1;players[myUID].status='active';await update(ref(db,`rooms/${roomCode}/game`),{players});await doNextHand(cg,players);}else{players[myUID].status='out';await update(ref(db,`rooms/${roomCode}/game`),{players});toast('게임에서 퇴장했습니다.','err');stopAll();showS('sMain');}});return;}
+  await doNextHand(cg,players);
+}
+function showRebuy(can,cb){
+  $('rbNote').textContent=can?'':'현재 블라인드 레벨이 높아 리바인이 불가합니다.';$('rbYes').disabled=!can;$('rbOv').classList.add('show');
+  $('rbYes').onclick=()=>{$('rbOv').classList.remove('show');cb(true);};$('rbNo').onclick=()=>{$('rbOv').classList.remove('show');cb(false);};
+}
+async function doNextHand(g,players){
+  const order=g.order;const alive=order.filter(u=>players[u].status!=='out'&&players[u].chips>0);const n=alive.length;if(n<=1){await endGame(g,players);return;}
+  const deck=shuffle(mkDeck());let di=0;const oldBI=alive.indexOf(g.order[g.btnI]);const newBI=(oldBI<0?0:oldBI+1)%n;
+  const sbI=n===2?newBI:(newBI+1)%n,bbI=n===2?(newBI+1)%n:(newBI+2)%n;const lv=g.blindLv||0;const[sb,bb]=BL[Math.min(lv,BL.length-1)];
+  const np={};
+  alive.forEach((uid,i)=>{const op=players[uid];let chips=op.chips,bet=0,pos='',st='active';if(i===newBI&&n>2)pos='btn';if(n===2&&i===newBI){pos='btn/sb';const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}if(i===sbI&&n>2){pos='sb';const paid=Math.min(sb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}if(i===bbI){pos='bb';const paid=Math.min(bb,chips);bet=paid;chips-=paid;if(chips===0)st='allin';}np[uid]={...op,chips,bet,pos,status:st,lastAction:'',hasActed:false,hand:[deck[di++],deck[di++]]};});
+  const community=[deck[di++],deck[di++],deck[di++],deck[di++],deck[di++]];
+  const pot=(np[alive[n===2?newBI:sbI]]?.bet||0)+(np[alive[bbI]]?.bet||0);
+  const ns={phase:'preflop',community,revealCount:0,pot,players:np,order:alive,btnI:newBI,sbI,bbI,curI:(bbI+1)%n,curBet:bb,lastRaiserI:bbI,blindLv:lv,blindTs:g.blindTs,handNum:(g.handNum||1)+1,minRaise:bb};
+  await update(ref(db,`rooms/${roomCode}/game`),ns);
+}
+function startBlindTimer(){
+  clearInterval(blTI);
+  blTI=setInterval(async()=>{
+    if(!gs)return;const lv=gs.blindLv||0,rem=LV_MS-(Date.now()-(gs.blindTs||Date.now()));
+    const m=Math.max(0,Math.floor(rem/60000)),s=Math.max(0,Math.floor((rem%60000)/1000));
+    $('hudNx').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+    if(rem<=0&&isHost&&lv<BL.length-1){const nl=lv+1;const[nsb,nbb]=BL[nl];const bl=$('blup');bl.textContent=`블라인드 업! ${fmt(nsb)}/${fmt(nbb)}`;bl.classList.add('show');setTimeout(()=>bl.classList.remove('show'),3000);await update(ref(db,`rooms/${roomCode}/game`),{blindLv:nl,blindTs:Date.now()});}
+  },1000);
+}
+async function endGame(g,players){clearSavedRoom();
+  const results=g.order.filter(u=>players[u]).sort((a,b)=>(players[b].chips||0)-(players[a].chips||0)).map((uid,i)=>({uid,nick:players[uid].nick,chips:players[uid].chips||0,rank:i+1}));
+  await update(ref(db,`rooms/${roomCode}`),{status:'ended',results});
+}
+function showResult(d){
+  stopAll();const results=d.results||[];const list=$('rList');list.innerHTML='';
+  results.forEach((r,i)=>{const d2=document.createElement('div');d2.className='ri';const rn=i+1;d2.innerHTML=`<div class="rr ${rn<=3?'r'+rn:''}">${rn}</div><div class="rname">${r.nick}${r.uid===myUID?' (나)':''}</div><div class="rchip">${fmt(r.chips)}칩</div>`;list.appendChild(d2);if(r.uid===myUID)saveHist({date:new Date().toLocaleDateString(),rank:rn,chips:r.chips});});
+  $('rSub').textContent=`총 ${results.length}명 참여`;showS('sResult');
+}
+function evalBest5(cards){const v=cards.filter(c=>c&&c.r&&c.s);if(v.length<2)return{rank:0,name:'?'};const cs=getCombos(v,Math.min(5,v.length));let best={rank:0,name:'하이카드'};for(const c of cs){const s=score5(c);if(s.rank>best.rank)best=s;}return best;}
+function getCombos(a,k){if(k===0)return[[]];if(!a.length)return[];const[f,...r]=a;return[...getCombos(r,k-1).map(c=>[f,...c]),...getCombos(r,k)];}
+function score5(cards){if(!cards||cards.length<2)return{rank:0,name:'하이카드'};const vals=cards.map(c=>RV[c.r]||0).sort((a,b)=>b-a);const sus=cards.map(c=>c.s);const fl=cards.length===5&&new Set(sus).size===1;const st=cards.length===5&&(vals.every((v,i)=>i===0||vals[i-1]-v===1)||(vals[0]===14&&vals[1]===5&&vals[2]===4&&vals[3]===3&&vals[4]===2));const cnt={};for(const v of vals)cnt[v]=(cnt[v]||0)+1;const grp=Object.values(cnt).sort((a,b)=>b-a);if(cards.length===5){if(fl&&st&&vals[0]===14&&vals[1]===13)return{rank:9,name:'🏆 로열플러시'};if(fl&&st)return{rank:8,name:'🔥 스트레이트플러시'};if(grp[0]===4)return{rank:7,name:'💥 포카드'};if(grp[0]===3&&grp[1]===2)return{rank:6,name:'🏠 풀하우스'};if(fl)return{rank:5,name:'🌊 플러시'};if(st)return{rank:4,name:'➡️ 스트레이트'};if(grp[0]===3)return{rank:3,name:'🎲 트리플'};if(grp[0]===2&&grp[1]===2)return{rank:2,name:'👥 투페어'};if(grp[0]===2)return{rank:1,name:'✌️ 원페어'};}else if(grp[0]===2)return{rank:1,name:'✌️ 원페어'};return{rank:0,name:'🎴 하이카드'};}
+$('btnEnd').addEventListener('click',()=>{if(!isHost){toast('방장만 종료 가능합니다.','err');return;}$('endModal').classList.add('show');});
+$('mNo').addEventListener('click',()=>$('endModal').classList.remove('show'));
+$('mYes').addEventListener('click',async()=>{$('endModal').classList.remove('show');if(!roomCode||!gs)return;await endGame(gs,gs.players);});
+$('btnToMain').addEventListener('click',async()=>{if(roomCode)await remove(ref(db,`rooms/${roomCode}`));stopAll();roomCode=null;clearSavedRoom();renderHist();showS('sMain');});
+window.addEventListener('beforeunload',()=>{/* 재접속 위해 localStorage 유지 */});
+</script>
+
+</body>
+</html>
