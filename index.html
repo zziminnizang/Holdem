@@ -4,8 +4,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="RSF Holdem">
-<title>RSF Holdem</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#07090a">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>홀덤 클럽</title>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--g:#c9a84c;--gl:#e8c96a;--gd:#7a5f28;--felt:#1a3a2a;--fl:#245c3a;--bg:#07090a;--s1:#0f1510;--s2:#141d10;--tx:#f0e6c8;--dm:#7a6a4a;--rd:#c0392b;--rl:#e74c3c;}
@@ -379,6 +385,199 @@ flex-shrink:0;
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 import{getDatabase,ref,set,get,update,onValue,remove,serverTimestamp}from"https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
+
+// ═══════════════════════════════════
+// 효과음 시스템 (Web Audio API)
+// ═══════════════════════════════════
+const SFX = {
+  _ctx: null,
+  _getCtx() {
+    if (!this._ctx) this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (this._ctx.state === 'suspended') this._ctx.resume();
+    return this._ctx;
+  },
+  _play(fn) { try { fn(this._getCtx()); } catch(e) {} },
+
+  // 카드 딜 - 슥~ 하는 종이 마찰음
+  deal() {
+    this._play(ctx => {
+      const dur = 0.07;
+      const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3) * 0.5;
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const hpf = ctx.createBiquadFilter();
+      hpf.type = 'highpass'; hpf.frequency.value = 3000;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.35, ctx.currentTime);
+      src.connect(hpf); hpf.connect(gain); gain.connect(ctx.destination);
+      src.start(ctx.currentTime);
+    });
+  },
+
+  // 칩 소리 - 칩 던지는 딸깍 소리
+  chip() {
+    this._play(ctx => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(900, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.06);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      // 노이즈 레이어 (칩 질감)
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+      const nd = buf.getChannelData(0);
+      for (let i = 0; i < nd.length; i++) nd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/nd.length, 2);
+      const ns = ctx.createBufferSource(); ns.buffer = buf;
+      const ng = ctx.createGain(); ng.gain.value = 0.15;
+      const lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 2000;
+      ns.connect(ng); ng.connect(lpf); lpf.connect(ctx.destination);
+      ns.start(ctx.currentTime);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.12);
+    });
+  },
+
+  // 칩 여러 개 (레이즈/올인)
+  chips(n = 3) {
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => this.chip(), i * 80);
+    }
+  },
+
+  // 폴드 - 카드 내려놓는 퍽 소리
+  fold() {
+    this._play(ctx => {
+      const dur = 0.12;
+      const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.5) * 0.6;
+      }
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const lpf = ctx.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 800;
+      const gain = ctx.createGain(); gain.gain.value = 0.45;
+      src.connect(lpf); lpf.connect(gain); gain.connect(ctx.destination);
+      src.start(ctx.currentTime);
+
+      // 약한 퍽 느낌 추가
+      const osc = ctx.createOscillator();
+      const og = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.setValueAtTime(120, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(60, ctx.currentTime + 0.1);
+      og.gain.setValueAtTime(0.2, ctx.currentTime);
+      og.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.connect(og); og.connect(ctx.destination);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.13);
+    });
+  },
+
+  // 올인 - 긴장감 있는 드라마틱 사운드
+  allin() {
+    this._play(ctx => {
+      // 낮은 드럼 히트
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(80, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.7, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.36);
+
+      // 칩 쏟아지는 소리
+      for (let i = 0; i < 6; i++) {
+        setTimeout(() => {
+          this._play(c2 => {
+            const b2 = c2.createBuffer(1, c2.sampleRate * 0.05, c2.sampleRate);
+            const d2 = b2.getChannelData(0);
+            for (let j = 0; j < d2.length; j++) d2[j] = (Math.random() * 2 - 1) * (1 - j/d2.length) * 0.3;
+            const s2 = c2.createBufferSource(); s2.buffer = b2;
+            const hpf2 = c2.createBiquadFilter(); hpf2.type = 'highpass'; hpf2.frequency.value = 1500;
+            const g2 = c2.createGain(); g2.gain.value = 0.25;
+            s2.connect(hpf2); hpf2.connect(g2); g2.connect(c2.destination);
+            s2.start(c2.currentTime);
+          });
+        }, 80 + i * 60);
+      }
+    });
+  },
+
+  // 쇼다운 팡파레 - 승리 멜로디
+  fanfare() {
+    this._play(ctx => {
+      const notes = [523, 659, 784, 1047]; // C5 E5 G5 C6
+      const times = [0, 0.15, 0.3, 0.5];
+      const durs  = [0.15, 0.15, 0.2, 0.5];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        const t = ctx.currentTime + times[i];
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.3, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + durs[i]);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t); osc.stop(t + durs[i] + 0.05);
+
+        // 하모닉 레이어
+        const osc2 = ctx.createOscillator();
+        const g2 = ctx.createGain();
+        osc2.type = 'sine'; osc2.frequency.value = freq * 2;
+        g2.gain.setValueAtTime(0, t);
+        g2.gain.linearRampToValueAtTime(0.1, t + 0.02);
+        g2.gain.exponentialRampToValueAtTime(0.001, t + durs[i]);
+        osc2.connect(g2); g2.connect(ctx.destination);
+        osc2.start(t); osc2.stop(t + durs[i] + 0.05);
+      });
+    });
+  },
+
+  // 블라인드 레벨업 - 알림음
+  levelup() {
+    this._play(ctx => {
+      const notes = [440, 554, 659];
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.value = freq;
+        const t = ctx.currentTime + i * 0.12;
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(t); osc.stop(t + 0.22);
+      });
+    });
+  },
+
+  // 커뮤니티 카드 - 카드 뒤집는 소리
+  flip() {
+    this._play(ctx => {
+      const dur = 0.05;
+      const buf = ctx.createBuffer(1, ctx.sampleRate * dur, ctx.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/d.length, 2) * 0.3;
+      }
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const hpf = ctx.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 2500;
+      const gain = ctx.createGain(); gain.gain.value = 0.4;
+      src.connect(hpf); hpf.connect(gain); gain.connect(ctx.destination);
+      src.start(ctx.currentTime);
+    });
+  }
+};
+
+// 첫 터치 시 AudioContext 활성화 (iOS 필수)
+document.addEventListener('touchstart', () => { try { SFX._getCtx(); } catch(e) {} }, { once: true });
+document.addEventListener('click', () => { try { SFX._getCtx(); } catch(e) {} }, { once: true });
+
 const FA={apiKey:"AIzaSyCKCe0Fg4-JTavWfyzoz6sIGBNfYzmaaPg",authDomain:"first-holdem-application.firebaseapp.com",databaseURL:"https://first-holdem-application-default-rtdb.firebaseio.com",projectId:"first-holdem-application",storageBucket:"first-holdem-application.firebasestorage.app",messagingSenderId:"7962802275",appId:"1:7962802275:web:7595e73ce8659256bd6056"};
 const fbApp=initializeApp(FA);const db=getDatabase(fbApp);
 const BL=[[100,200],[200,400],[300,600],[400,800],[500,1000],[700,1400],[1000,2000],[1500,3000],[2000,4000],[2500,5000],[3000,6000],[4000,8000],[5000,10000],[6000,12000],[7000,14000],[8000,16000],[9000,18000],[10000,20000]];
@@ -802,12 +1001,13 @@ async function doAct(type,amount){
   let pot=g.pot||0,curBet=g.curBet||0,minR=g.minRaise||BL[Math.min(g.blindLv||0,BL.length-1)][1],lastRI=g.lastRaiserI??g.curI;
   const p=players[myUID];
   p.hasActed=true;
-  if(type==='fold'){p.status='folded';p.lastAction='fold';}
-  else if(type==='check'){p.lastAction='check';}
+  if(type==='fold'){p.status='folded';p.lastAction='fold';SFX.fold();}
+  else if(type==='check'){p.lastAction='check';SFX.chip();}
   else if(type==='call'){
     const tc=Math.min(curBet-p.bet,p.chips);
     pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';
     if(p.chips<=0)p.status='allin';
+    SFX.chips(2);
   }
   else if(type==='raise'){const diff=amount-(p.bet||0),actual=Math.min(diff,p.chips);minR=amount-curBet;curBet=amount;pot+=actual;p.chips-=actual;p.bet=amount;p.lastAction='raise';lastRI=order.indexOf(myUID);if(p.chips<=0)p.status='allin';
     // 레이즈 시 다른 액티브 플레이어들은 다시 액션해야 함
@@ -815,7 +1015,8 @@ async function doAct(type,amount){
   else if(type==='allin'){const total=p.chips+(p.bet||0);if(total>curBet){curBet=total;lastRI=order.indexOf(myUID);minR=p.chips;
     // 올인이 레이즈가 되면 다른 액티브 플레이어들 hasActed 리셋
     order.forEach(u=>{if(u!==myUID&&players[u].status==='active')players[u].hasActed=false;});}
-    pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';}
+    pot+=p.chips;p.bet=total;p.chips=0;p.status='allin';p.lastAction='allin';
+    try{SFX.allin();}catch(e){}}
   const notFd=order.filter(u=>players[u].status!=='folded'&&players[u].status!=='out');
   if(notFd.length===1){players[notFd[0]].chips+=pot;const prevP=pot;pot=0;await update(ref(db,`rooms/${roomCode}/game`),{...g,players,pot,_prevPot:prevP,curBet,minRaise:minR,lastRaiserI:lastRI,phase:'foldwin',revealCount:g.revealCount||0});return;}
   // ── 올인 즉시 런아웃 감지 (done 체크 전에 먼저 확인) ──
@@ -1007,6 +1208,7 @@ function handleRunoutPhase(g) {
         slot.style.color = isRed(c.s) ? '#c0392b' : '#1a1a1a';
         slot.style.animation = 'cardReveal .45s ease';
         slot.innerHTML = '<span style="font-size:14px;line-height:1">'+c.r+'</span><span style="font-size:18px;line-height:1">'+c.s+'</span>';
+        SFX.flip();
       }, i * 180);
     }
     if (isHost) {
@@ -1097,6 +1299,7 @@ function showFoldWin(g){
   const ov=$('sdOv');ov.innerHTML='';ov.classList.add('show');
 
   // 승자 표시
+  SFX.fanfare();
   const title=document.createElement('div');
   title.className='sdt';
   title.textContent='✦ 게임 종료 ✦';
@@ -1161,6 +1364,7 @@ function showSD(g){
   const winners=scores.filter(s=>s.score.rank===topR);
 
   const ov=$('sdOv');ov.innerHTML='';ov.classList.add('show');
+  SFX.fanfare();
 
   const t=document.createElement('div');t.className='sdt';t.textContent='✦ 쇼다운 ✦';ov.appendChild(t);
 
@@ -1236,7 +1440,8 @@ function startBlindTimer(){
     if(!gs)return;const lv=gs.blindLv||0,rem=LV_MS-(Date.now()-(gs.blindTs||Date.now()));
     const m=Math.max(0,Math.floor(rem/60000)),s=Math.max(0,Math.floor((rem%60000)/1000));
     $('hudNx').textContent=`${m}:${s.toString().padStart(2,'0')}`;
-    if(rem<=0&&isHost&&lv<BL.length-1){const nl=lv+1;const[nsb,nbb]=BL[nl];const bl=$('blup');bl.textContent=`블라인드 업! ${fmt(nsb)}/${fmt(nbb)}`;bl.classList.add('show');setTimeout(()=>bl.classList.remove('show'),3000);await update(ref(db,`rooms/${roomCode}/game`),{blindLv:nl,blindTs:Date.now()});}
+    if(rem<=0&&isHost&&lv<BL.length-1){const nl=lv+1;const[nsb,nbb]=BL[nl];const bl=$('blup');bl.textContent=`블라인드 업! ${fmt(nsb)}/${fmt(nbb)}`;bl.classList.add('show');setTimeout(()=>bl.classList.remove('show'),3000);
+      try{SFX.levelup();}catch(e){};await update(ref(db,`rooms/${roomCode}/game`),{blindLv:nl,blindTs:Date.now()});}
   },1000);
 }
 async function endGame(g,players){clearSavedRoom();
