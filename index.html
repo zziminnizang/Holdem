@@ -578,6 +578,65 @@ const SFX = {
 document.addEventListener('touchstart', () => { try { SFX._getCtx(); } catch(e) {} }, { once: true });
 document.addEventListener('click', () => { try { SFX._getCtx(); } catch(e) {} }, { once: true });
 
+// ── 딜러 음성 시스템 ──
+const DEALER = {
+  _synth: window.speechSynthesis,
+  _voice: null,
+
+  // 최적 여성 목소리 찾기
+  _getVoice() {
+    if (this._voice) return this._voice;
+    const voices = this._synth.getVoices();
+    // 영어 여성 목소리 우선순위
+    const preferred = [
+      'Samantha',       // iOS/macOS 기본 여성
+      'Karen',          // iOS 호주 여성
+      'Victoria',       // macOS 여성
+      'Fiona',          // macOS 스코틀랜드 여성
+      'Moira',          // macOS 아일랜드 여성
+    ];
+    for (const name of preferred) {
+      const v = voices.find(v => v.name === name);
+      if (v) { this._voice = v; return v; }
+    }
+    // fallback: 영어 여성 목소리 아무거나
+    const femaleEn = voices.find(v =>
+      v.lang.startsWith('en') && (v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('woman'))
+    );
+    if (femaleEn) { this._voice = femaleEn; return femaleEn; }
+    // fallback: 영어 목소리 아무거나
+    const anyEn = voices.find(v => v.lang.startsWith('en'));
+    if (anyEn) { this._voice = anyEn; return anyEn; }
+    return null;
+  },
+
+  speak(text, rate = 0.92, pitch = 1.15) {
+    try {
+      this._synth.cancel();
+      const utt = new SpeechSynthesisUtterance(text);
+      const voice = this._getVoice();
+      if (voice) utt.voice = voice;
+      utt.lang = 'en-US';
+      utt.rate = rate;
+      utt.pitch = pitch;
+      utt.volume = 1.0;
+      this._synth.speak(utt);
+    } catch(e) {}
+  },
+
+  check()  { this.speak('Check',  0.88, 1.2); },
+  raise()  { this.speak('Raise',  0.85, 1.15); },
+  allin()  { this.speak('All in', 0.80, 1.1); },
+};
+
+// 음성 목록 로드 (비동기)
+if (window.speechSynthesis) {
+  speechSynthesis.onvoiceschanged = () => { DEALER._voice = null; DEALER._getVoice(); };
+  // 즉시 한번 시도
+  setTimeout(() => DEALER._getVoice(), 500);
+}
+
+
 const FA={apiKey:"AIzaSyCKCe0Fg4-JTavWfyzoz6sIGBNfYzmaaPg",authDomain:"first-holdem-application.firebaseapp.com",databaseURL:"https://first-holdem-application-default-rtdb.firebaseio.com",projectId:"first-holdem-application",storageBucket:"first-holdem-application.firebasestorage.app",messagingSenderId:"7962802275",appId:"1:7962802275:web:7595e73ce8659256bd6056"};
 const fbApp=initializeApp(FA);const db=getDatabase(fbApp);
 const BL=[[100,200],[200,400],[300,600],[400,800],[500,1000],[700,1400],[1000,2000],[1500,3000],[2000,4000],[2500,5000],[3000,6000],[4000,8000],[5000,10000],[6000,12000],[7000,14000],[8000,16000],[9000,18000],[10000,20000]];
@@ -884,12 +943,12 @@ function renderActBtns(g,me){
   const bb=BL[Math.min(g.blindLv||0,BL.length-1)][1];const minR=g.minRaise||bb;
   function ab(lbl,cls,fn){const b=document.createElement('button');b.className=`ab ${cls}`;b.textContent=lbl;b.addEventListener('click',fn);cb.appendChild(b);}
 
-  if(myChips<=0){ab('올인','ab-al',()=>doAct('allin',myBet));return;}
+  if(myChips<=0){ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet);});return;}
 
   if(toCall<=0){
     ab('체크','ab-ch',()=>doAct('check',0));
     if(myChips>=bb)ab('레이즈','ab-ra',()=>openRaise(g,me));
-    ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+    ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
   } else {
     // 앞에 올인이 있는지 확인
     const myIdx=order.indexOf(me.uid);
@@ -907,14 +966,14 @@ function renderActBtns(g,me){
       if(myChips<=toCall){
         // 스택이 콜금액보다 적거나 같음 → 폴드 or 올인
         ab('폴드','ab-fo',()=>doAct('fold',0));
-        ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+        ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
       } else {
         // 스택이 더 많음
         if(hasAfter){
           // 뒤에 플레이어 있음 → 폴드, 콜, 올인
           ab('폴드','ab-fo',()=>doAct('fold',0));
           ab('콜','ab-ca',()=>doAct('call',curBet));
-          ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+          ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
         } else {
           // 헤즈업 or 뒤에 없음 → 폴드, 콜만
           ab('폴드','ab-fo',()=>doAct('fold',0));
@@ -925,11 +984,11 @@ function renderActBtns(g,me){
       // 일반 베팅
       ab('폴드','ab-fo',()=>doAct('fold',0));
       if(myChips<=toCall){
-        ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+        ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
       } else {
         ab('콜','ab-ca',()=>doAct('call',curBet));
         if(myChips>toCall+minR)ab('레이즈','ab-ra',()=>openRaise(g,me));
-        ab('올인','ab-al',()=>doAct('allin',myBet+myChips));
+        ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
       }
     }
   }
@@ -983,8 +1042,8 @@ function openRaise(g,me){
 
   $('rcf').onclick=()=>{
     $('rpanel').classList.remove('show');
-    if(raiseV>=maxT)doAct('allin',maxT);
-    else doAct('raise',raiseV);
+    if(raiseV>=maxT){DEALER.allin();doAct('allin',maxT);}
+    else{DEALER.raise();doAct('raise',raiseV);}
   };
 }
 function startActTimer(g){
@@ -1002,7 +1061,7 @@ async function doAct(type,amount){
   const p=players[myUID];
   p.hasActed=true;
   if(type==='fold'){p.status='folded';p.lastAction='fold';SFX.fold();}
-  else if(type==='check'){p.lastAction='check';SFX.chip();}
+  else if(type==='check'){p.lastAction='check';SFX.chip();DEALER.check();}
   else if(type==='call'){
     const tc=Math.min(curBet-p.bet,p.chips);
     pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';
