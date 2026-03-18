@@ -142,8 +142,7 @@ input[type=range].rsl::-webkit-slider-thumb{-webkit-appearance:none;width:22px;h
 .mbtn{flex:1;padding:12px;border-radius:9px;border:none;font-size:13px;font-weight:700;cursor:pointer;-webkit-appearance:none;}
 .mb-c{background:rgba(255,255,255,.06);color:var(–dm);}
 .mb-ok{background:rgba(192,57,43,.28);color:var(–rl);border:1px solid rgba(192,57,43,.28);}
-.sdov{display:none;position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.9);flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:18px;overflow-y:auto;}
-.sdov.show{display:flex;}
+.sdov{display:none!important;} /* 쇼다운 오버레이 제거 */
 .sdt{font-family:‘Cinzel Decorative’,serif;font-size:15px;color:var(–gl);letter-spacing:2px;margin-bottom:2px;}
 .sdpl{width:100%;max-width:295px;background:linear-gradient(135deg,var(–s1),var(–s2));border:1px solid rgba(201,168,76,.18);border-radius:11px;padding:11px 14px;display:flex;align-items:center;gap:11px;}
 .sdpl.win{border-color:var(–g);box-shadow:0 0 16px rgba(201,168,76,.28);}
@@ -360,7 +359,7 @@ flex-shrink:0;
 <div class="overlay" id="endModal">
   <div class="mbox"><div class="mtitle">게임을 종료하시겠습니까?</div><div class="mtext">현재 게임을 끝내고<br>최종 결과를 확인합니다.</div><div class="mbtns"><button class="mbtn mb-c" id="mNo">취소</button><button class="mbtn mb-ok" id="mYes">종료</button></div></div>
 </div>
-<div class="sdov" id="sdOv"></div>
+<!-- sdOv 제거됨 -->
 <div class="runout-overlay" id="runoutOv"></div>
 <div class="rejoin-overlay" id="rejoinOv">
   <div class="rejoin-icon">🃏</div>
@@ -434,6 +433,7 @@ const DEALER = {
 
   check()  { this.speak('Check',  0.88, 1.2); },
   call()   { this.speak('Call',   0.88, 1.2); },
+  fold()   { this.speak('Fold',   0.88, 1.2); },
   raise()  { this.speak('Raise',  0.85, 1.15); },
   allin()  { this.speak('All in', 0.80, 1.1); },
 };
@@ -675,7 +675,7 @@ function renderGame(g){
   if(g.phase==='preflop'){
     if(window._sdTimer){clearInterval(window._sdTimer);window._sdTimer=null;}
     window._lastRunoutPhase=null;
-    $('sdOv').classList.remove('show');$('sdOv').innerHTML='';
+    
     $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
     // WIN 뱃지 자동 제거 (renderSeats가 새로 그려지므로 자동)
   }
@@ -692,17 +692,17 @@ function renderGame(g){
   if(g.phase==='showdown'){
     $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
     window._lastRunoutPhase=null;
-    if(!$('sdOv').classList.contains('show')){
+    if(!window._showdownTriggered){
+      window._showdownTriggered=true;
       if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
       showSD(g);
     }
+  } else if(g.phase!=='showdown_reveal'){
+    window._showdownTriggered=false;
   }
-  // 카드 공개 + WIN 표시 (오버레이 없이 테이블에서 바로)
   if(g.phase==='showdown_reveal'){
-    $('sdOv').classList.remove('show');$('sdOv').innerHTML='';
     $('runoutOv').classList.remove('show');$('runoutOv').innerHTML='';
-    // renderSeats가 showdown_reveal도 카드 공개하도록 처리됨
-    // WIN 뱃지는 renderSeats에서 처리
+    window._lastRunoutPhase=null;
   }
   if(g.phase==='foldwin'&&!$('sdOv').classList.contains('show')){
     if(!g._prevPot&&gs&&gs.pot>0)g._prevPot=gs.pot;
@@ -777,7 +777,7 @@ function renderActBtns(g,me){
   if(myChips<=0){ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet);});return;}
 
   if(toCall<=0){
-    ab('체크','ab-ch',()=>doAct('check',0));
+    ab('체크','ab-ch',()=>{DEALER.check();doAct('check',0);});
     if(myChips>=bb)ab('레이즈','ab-ra',()=>openRaise(g,me));
     ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
   } else {
@@ -796,28 +796,28 @@ function renderActBtns(g,me){
     if(isAllinSit){
       if(myChips<=toCall){
         // 스택이 콜금액보다 적거나 같음 → 폴드 or 올인
-        ab('폴드','ab-fo',()=>doAct('fold',0));
+        ab('폴드','ab-fo',()=>{DEALER.fold();doAct('fold',0);});
         ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
       } else {
         // 스택이 더 많음
         if(hasAfter){
           // 뒤에 플레이어 있음 → 폴드, 콜, 올인
-          ab('폴드','ab-fo',()=>doAct('fold',0));
-          ab('콜','ab-ca',()=>doAct('call',curBet));
+          ab('폴드','ab-fo',()=>{DEALER.fold();doAct('fold',0);});
+          ab('콜','ab-ca',()=>{DEALER.call();doAct('call',curBet);});
           ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
         } else {
           // 헤즈업 or 뒤에 없음 → 폴드, 콜만
-          ab('폴드','ab-fo',()=>doAct('fold',0));
-          ab('콜','ab-ca',()=>doAct('call',curBet));
+          ab('폴드','ab-fo',()=>{DEALER.fold();doAct('fold',0);});
+          ab('콜','ab-ca',()=>{DEALER.call();doAct('call',curBet);});
         }
       }
     } else {
       // 일반 베팅
-      ab('폴드','ab-fo',()=>doAct('fold',0));
+      ab('폴드','ab-fo',()=>{DEALER.fold();doAct('fold',0);});
       if(myChips<=toCall){
         ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
       } else {
-        ab('콜','ab-ca',()=>doAct('call',curBet));
+        ab('콜','ab-ca',()=>{DEALER.call();doAct('call',curBet);});
         if(myChips>toCall+minR)ab('레이즈','ab-ra',()=>openRaise(g,me));
         ab('올인','ab-al',()=>{DEALER.allin();doAct('allin',myBet+myChips);});
       }
@@ -892,12 +892,11 @@ async function doAct(type,amount){
   const p=players[myUID];
   p.hasActed=true;
   if(type==='fold'){p.status='folded';p.lastAction='fold';}
-  else if(type==='check'){p.lastAction='check';DEALER.check();}
+  else if(type==='check'){p.lastAction='check';}
   else if(type==='call'){
     const tc=Math.min(curBet-p.bet,p.chips);
     pot+=tc;p.chips-=tc;p.bet+=tc;p.lastAction='call';
     if(p.chips<=0)p.status='allin';
-    DEALER.call();
   }
   else if(type==='raise'){const diff=amount-(p.bet||0),actual=Math.min(diff,p.chips);minR=amount-curBet;curBet=amount;pot+=actual;p.chips-=actual;p.bet=amount;p.lastAction='raise';lastRI=order.indexOf(myUID);if(p.chips<=0)p.status='allin';
     // 레이즈 시 다른 액티브 플레이어들은 다시 액션해야 함
@@ -1197,5 +1196,23 @@ function showFoldWin(g){
       _prevPot:pot
     });
     setTimeout(()=>{ if(isHost)nextHand(g); }, 3000);
+  }
+}
+function showSD(g){
+  const order=g.order;
+  const nf=order.filter(u=>g.players[u]&&g.players[u].status!=='folded'&&g.players[u].status!=='out');
+  if(nf.length===1){showFoldWin(g);return;}
+  const scores=nf.map(uid=>{
+    const p=g.players[uid];
+    const handArr=p.hand?(Array.isArray(p.hand)?p.hand:Object.values(p.hand)):[];
+    const commArr=g.community?(Array.isArray(g.community)?g.community:Object.values(g.community)):[];
+    return{uid,score:evalBest5([...handArr,...commArr])};
+  });
+  scores.sort((a,b)=>b.score.rank-a.score.rank);
+  const topR=scores[0]?.score.rank;
+  const winnerUIDs=scores.filter(s=>s.score.rank===topR).map(s=>s.uid);
+  if(isHost){
+    update(ref(db,`rooms/${roomCode}/game`),{phase:'showdown_reveal',_winners:winnerUIDs,_prevPot:g._prevPot||0});
+    setTimeout(()=>{if(isHost)nextHand(g);},3200);
   }
 }
